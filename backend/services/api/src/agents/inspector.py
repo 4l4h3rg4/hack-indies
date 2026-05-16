@@ -1,6 +1,43 @@
-from google.adk.agents import LlmAgent
+import logging
 
-from ..config import settings
+from google.adk.agents import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
+
+from .model_factory import build_model
+
+logger = logging.getLogger(__name__)
+
+_WRITE_PREFIXES = (
+    "apply_", "execute_", "run_", "deploy_", "create_",
+    "update_", "delete_", "insert_", "drop_", "alter_",
+    "grant_", "revoke_", "truncate_", "generate_", "write_",
+    "set_", "modify_", "upsert_",
+)
+
+
+async def _read_only_gate(
+    callback_context: CallbackContext, tool_name: str, args: dict
+) -> dict | None:
+    """before_tool_callback: bloquea cualquier tool de escritura en el Inspector."""
+    if tool_name.startswith(_WRITE_PREFIXES):
+        return {
+            "status": "blocked",
+            "error": (
+                f"ACCESO DENEGADO: La herramienta '{tool_name}' es de escritura. "
+                "El Inspector solo puede leer. Sugiere al Orquestador que delegue "
+                "esta acción al Operador si el usuario autoriza."
+            ),
+        }
+    return None
+
+
+async def _log_tool_usage(
+    callback_context: CallbackContext, tool_name: str, result: dict
+) -> dict | None:
+    has_error = isinstance(result, dict) and result.get("error")
+    status = "blocked" if has_error else "success"
+    logger.info("Inspector tool '%s': %s", tool_name, status)
+    return None
 
 
 def build_inspector(mcp_toolsets: list = None):
@@ -8,7 +45,7 @@ def build_inspector(mcp_toolsets: list = None):
 
     inspector = LlmAgent(
         name="Inspector",
-        model=settings.llm_model,
+        model=build_model(temperature=0.1),
         instruction="""Eres un auditor de seguridad de infraestructura. Tu misión es inspeccionar el stack
 tecnológico del usuario sin modificar NADA.
 
@@ -33,5 +70,8 @@ Cuando termines tu auditoría, entrega un resumen con:
 - Recomendaciones priorizadas
 """,
         tools=tools,
+        before_tool_callback=_read_only_gate,
+        after_tool_callback=_log_tool_usage,
+        output_key="audit_result",
     )
     return inspector

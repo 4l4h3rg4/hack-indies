@@ -1,4 +1,5 @@
 "use client";
+
 import { Shield, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/hooks/useChat";
@@ -9,8 +10,8 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
 
   if (isSystem) {
     return (
-      <div className="flex justify-center my-3">
-        <div className="bg-gray-800/60 text-gray-400 text-xs px-3 py-1.5 rounded-full border border-gray-700/50">
+      <div className="flex justify-center my-2">
+        <div className="bg-muted/60 text-muted-foreground text-xs px-3 py-1 rounded-full border">
           {message.content}
         </div>
       </div>
@@ -18,38 +19,44 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
   }
 
   return (
-    <div className={cn("flex gap-3 mb-4 animate-fade-in", isUser && "flex-row-reverse")}>
+    <div
+      className={cn(
+        "flex gap-2.5 mb-4 animate-slide-in-up",
+        isUser && "flex-row-reverse"
+      )}
+    >
+      {/* Avatar */}
       <div
         className={cn(
-          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-          isUser ? "bg-brand-600" : "bg-gray-700"
+          "flex-shrink-0 size-8 rounded-full flex items-center justify-center",
+          isUser
+            ? "bg-primary text-primary-foreground"
+            : "bg-secondary text-secondary-foreground border"
         )}
       >
-        {isUser ? (
-          <User size={16} className="text-white" />
-        ) : (
-          <Shield size={16} className="text-brand-400" />
-        )}
+        {isUser ? <User className="size-4" /> : <Shield className="size-4" />}
       </div>
+
+      {/* Bubble */}
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+          "max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
           isUser
-            ? "bg-brand-600 text-white rounded-tr-sm"
-            : "bg-gray-800/80 text-gray-100 rounded-tl-sm border border-gray-700/50"
+            ? "bg-primary text-primary-foreground rounded-tr-md"
+            : "bg-card text-card-foreground rounded-tl-md border shadow-sm"
         )}
       >
         {message.content ? (
-          <div className="whitespace-pre-wrap">{message.content}</div>
+          <div className="whitespace-pre-wrap break-words">{message.content}</div>
         ) : (
-          <div className="flex gap-1 py-1">
-            <span className="typing-dot w-1.5 h-1.5 bg-gray-400 rounded-full" />
-            <span className="typing-dot w-1.5 h-1.5 bg-gray-400 rounded-full" />
-            <span className="typing-dot w-1.5 h-1.5 bg-gray-400 rounded-full" />
+          <div className="flex gap-1 py-1.5">
+            <span className="typing-dot size-1.5 bg-muted-foreground/50 rounded-full" />
+            <span className="typing-dot size-1.5 bg-muted-foreground/50 rounded-full" />
+            <span className="typing-dot size-1.5 bg-muted-foreground/50 rounded-full" />
           </div>
         )}
         {message.isStreaming && message.content && (
-          <span className="inline-block w-1.5 h-4 bg-brand-400 ml-0.5 animate-pulse rounded-sm align-middle" />
+          <span className="inline-block w-1 h-4 bg-primary ml-0.5 cursor-blink rounded-sm align-middle" />
         )}
       </div>
     </div>

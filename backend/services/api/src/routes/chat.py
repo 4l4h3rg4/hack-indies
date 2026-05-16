@@ -1,40 +1,30 @@
-import asyncio
 import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
+from google.adk.sessions import InMemorySessionService
 from sse_starlette.sse import EventSourceResponse
 
+from ..agents.inspector import build_inspector
 from ..agents.operator import build_operator
 from ..agents.orchestrator import build_orchestrator
-from ..agents.inspector import build_inspector
 from ..memory.extractor import extract_facts
 from ..memory.retriever import search_mental_notes, store_mental_notes_batch
-from ..shared_schemas import ChatRequest, ChatStreamEvent, AgentLogEntry
+from ..session_store import store
+from ..shared_schemas import ChatRequest
 from ..tools.mcp_connector import build_mcp_toolset
 from ..tools.supabase_tools import get_supabase_client, get_user_connections
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-_sessions = {}
-_agent_logs = {}
+_session_service = InMemorySessionService()
 
 
 def emit_log(session_id: str, agent_name: str, icon: str, message: str):
-    entry = AgentLogEntry(
-        agent_name=agent_name,
-        icon=icon,
-        message=message,
-        timestamp=datetime.now(timezone.utc),
-    )
-    if session_id not in _agent_logs:
-        _agent_logs[session_id] = []
-    _agent_logs[session_id].append(entry)
-    return entry
+    return store.append_log(session_id, agent_name, icon, message)
 
 
 async def _build_session_agents(user_id: str, session_id: str):
@@ -92,29 +82,39 @@ async def run_agent_stream(
     user_id: str,
     session_id: str,
     message: str,
+    approved_action_id: str = "",
 ) -> AsyncIterator[dict]:
+    from google.adk.plugins.reflect_retry_tool_plugin import ReflectAndRetryToolPlugin
     from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
     from google.genai import types as genai_types
 
-    session_service = InMemorySessionService()
-
     try:
-        session = session_service.get_session(
+        await _session_service.create_session(
             app_name="hackindies",
             user_id=user_id,
             session_id=session_id,
         )
-    except Exception:
-        session = session_service.create_session(
+    except ValueError:
+        pass
+
+    if approved_action_id:
+        session = await _session_service.get_session(
             app_name="hackindies",
             user_id=user_id,
             session_id=session_id,
         )
+        if session:
+            session.state["approved_action_id"] = approved_action_id
+            emit_log(
+                session_id, "Operador", "✅",
+                f"Acción aprobada por el usuario (id: {approved_action_id[:8]}...)"
+            )
 
     runner = Runner(
+        app_name="hackindies",
         agent=orchestrator,
-        session_service=session_service,
+        session_service=_session_service,
+        plugins=[ReflectAndRetryToolPlugin(max_retries=2)],
     )
 
     content = genai_types.Content(
@@ -129,14 +129,10 @@ async def run_agent_stream(
         session_id=session_id,
         new_message=content,
     ):
-        event_dict = {
-            "event_type": "unknown",
-            "content": None,
-            "data": None,
-        }
 
-        event_type = getattr(event, "event_type", None)
+        getattr(event, "event_type", None)
 
+        # Partial streaming events (token-by-token)
         if hasattr(event, "partial") and event.partial and hasattr(event, "content"):
             for part in event.content.parts if event.content else []:
                 if hasattr(part, "text") and part.text:
@@ -148,7 +144,19 @@ async def run_agent_stream(
                         ),
                     }
 
-        elif hasattr(event, "actions") and event.actions:
+        # Complete (non-partial) response from model
+        if hasattr(event, "content") and event.content and not getattr(event, "partial", True):
+            for part in event.content.parts if event.content else []:
+                if hasattr(part, "text") and part.text and part.text not in full_response:
+                    full_response += part.text
+                    yield {
+                        "event": "token",
+                        "data": json.dumps(
+                            {"event_type": "text", "content": part.text}
+                        ),
+                    }
+
+        if hasattr(event, "actions") and event.actions:
             for action in event.actions:
                 if hasattr(action, "agent_transfer"):
                     target = getattr(action.agent_transfer, "agent_name", "desconocido")
@@ -189,12 +197,12 @@ async def run_agent_stream(
         }),
     }
 
-    _sessions[session_id] = {"full_response": full_response, "user_id": user_id}
+    store.set_session_info(session_id, full_response, user_id)
 
 
 @router.post("")
 async def chat(request: Request, payload: ChatRequest):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     session_id = payload.session_id or str(uuid.uuid4())
 
     emit_log(session_id, "Orquestador", "🤖", "Nueva consulta recibida. Preparando agentes...")
@@ -203,12 +211,13 @@ async def chat(request: Request, payload: ChatRequest):
 
     async def event_generator():
         async for event_data in run_agent_stream(
-            orchestrator, user_id, session_id, payload.message
+            orchestrator, user_id, session_id, payload.message,
+            approved_action_id=payload.approved_action_id or "",
         ):
             yield event_data
 
-        if session_id in _sessions:
-            session_info = _sessions[session_id]
+        session_info = store.get_session_info(session_id)
+        if session_info:
             full_response = session_info.get("full_response", "")
             if full_response:
                 emit_log(session_id, "Orquestador", "🤖", "Extrayendo aprendizajes de la conversación...")

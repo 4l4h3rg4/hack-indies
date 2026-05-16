@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/connections", tags=["connections"])
 
 @router.get("")
 async def list_connections(request: Request):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     supabase = get_supabase_client()
     if not supabase:
         return {"connections": [], "message": "Supabase not configured"}
@@ -32,7 +32,7 @@ async def list_connections(request: Request):
 
 @router.post("")
 async def create_connection(request: Request, payload: ConnectionCreate):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     supabase = get_supabase_client()
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase not configured")
@@ -64,7 +64,7 @@ async def create_connection(request: Request, payload: ConnectionCreate):
 
 @router.delete("/{connection_id}")
 async def delete_connection(request: Request, connection_id: str):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     supabase = get_supabase_client()
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase not configured")

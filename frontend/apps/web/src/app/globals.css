@@ -2,38 +2,196 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   HackIndie Design System — "Indie Night"
+   Tema: Indie-Púrpura (violet + pink accents)
+   Mobile-first · Light/Dark · WCAG AA
+   ============================================ */
+
 @layer base {
-  body {
-    @apply bg-gray-950 text-gray-100 antialiased;
-    font-family: system-ui, -apple-system, sans-serif;
+  :root {
+    /* ── Light mode ── */
+    --background: 270 40% 99%;
+    --foreground: 262 40% 10%;
+    --card: 270 40% 98%;
+    --card-foreground: 262 40% 10%;
+    --popover: 270 40% 99%;
+    --popover-foreground: 262 40% 10%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 262 30% 94%;
+    --secondary-foreground: 262 50% 25%;
+    --muted: 262 25% 94%;
+    --muted-foreground: 262 10% 46%;
+    --accent: 290 70% 96%;
+    --accent-foreground: 262 50% 25%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 262 20% 88%;
+    --input: 262 20% 88%;
+    --ring: 262 83% 58%;
+    --radius: 0.625rem;
+
+    /* ── Charts ── */
+    --chart-1: 262 83% 58%;
+    --chart-2: 330 81% 60%;
+    --chart-3: 199 89% 48%;
+    --chart-4: 43 96% 56%;
+    --chart-5: 142 71% 45%;
+
+    /* ── Sidebar ── */
+    --sidebar-background: 262 30% 97%;
+    --sidebar-foreground: 262 20% 30%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 262 30% 93%;
+    --sidebar-accent-foreground: 262 40% 20%;
+    --sidebar-border: 262 20% 88%;
+    --sidebar-ring: 262 83% 58%;
+
+    /* ── Brand accents ── */
+    --brand-accent: 330 81% 60%;
+    --brand-accent-foreground: 0 0% 100%;
+
+    /* ── Risk semantic colors ── */
+    --risk-low: 142 71% 45%;
+    --risk-low-foreground: 0 0% 100%;
+    --risk-medium: 43 96% 56%;
+    --risk-medium-foreground: 0 0% 10%;
+    --risk-high: 32 95% 55%;
+    --risk-high-foreground: 0 0% 100%;
+    --risk-critical: 0 72% 51%;
+    --risk-critical-foreground: 0 0% 100%;
+
+    /* ── Agent colors ── */
+    --agent-orchestrator: 262 83% 58%;
+    --agent-inspector: 199 89% 48%;
+    --agent-operator: 32 95% 55%;
+    --agent-watcher: 142 71% 45%;
+  }
+
+  .dark {
+    /* ── Dark mode ── */
+    --background: 265 40% 3.5%;
+    --foreground: 0 0% 98%;
+    --card: 265 30% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 265 30% 6%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 262 83% 62%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 265 30% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 265 25% 12%;
+    --muted-foreground: 262 10% 64%;
+    --accent: 265 30% 14%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 265 25% 14%;
+    --input: 265 25% 14%;
+    --ring: 262 83% 62%;
+
+    /* ── Charts ── */
+    --chart-1: 262 83% 62%;
+    --chart-2: 330 81% 65%;
+    --chart-3: 199 89% 55%;
+    --chart-4: 43 96% 60%;
+    --chart-5: 142 71% 50%;
+
+    /* ── Sidebar ── */
+    --sidebar-background: 265 30% 5%;
+    --sidebar-foreground: 262 15% 80%;
+    --sidebar-primary: 262 83% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 265 30% 12%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 265 25% 14%;
+    --sidebar-ring: 262 83% 62%;
+
+    /* ── Brand accents ── */
+    --brand-accent: 330 81% 65%;
+    --brand-accent-foreground: 0 0% 100%;
+
+    /* ── Risk semantic colors (dark-adjusted for readability) ── */
+    --risk-low: 142 71% 42%;
+    --risk-low-foreground: 0 0% 100%;
+    --risk-medium: 43 96% 50%;
+    --risk-medium-foreground: 0 0% 10%;
+    --risk-high: 32 95% 52%;
+    --risk-high-foreground: 0 0% 100%;
+    --risk-critical: 0 72% 48%;
+    --risk-critical-foreground: 0 0% 100%;
+
+    /* ── Agent colors ── */
+    --agent-orchestrator: 262 83% 62%;
+    --agent-inspector: 199 89% 55%;
+    --agent-operator: 32 95% 52%;
+    --agent-watcher: 142 71% 42%;
   }
 }
 
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* ── Scrollbar styling ── */
 @layer components {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #374151 transparent;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: #374151;
-    border-radius: 3px;
+    background-color: hsl(var(--muted-foreground) / 0.25);
+    border-radius: 9999px;
   }
 }
 
-@keyframes typing {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
+/* ── Chat animations ── */
+@layer utilities {
+  @keyframes typing {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  .typing-dot {
+    animation: typing 1.4s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-.typing-dot {
-  animation: typing 1.4s infinite;
-}
+  @keyframes cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .cursor-blink {
+    animation: cursor-blink 1s ease-in-out infinite;
+  }
 
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes slide-in-up {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .animate-slide-in-up {
+    animation: slide-in-up 0.3s ease-out;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 8px 0 currentColor; }
+    50% { box-shadow: 0 0 20px 2px currentColor; }
+  }
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+}

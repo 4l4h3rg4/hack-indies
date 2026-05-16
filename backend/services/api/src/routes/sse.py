@@ -4,7 +4,7 @@ import json
 from fastapi import APIRouter, Request
 from sse_starlette.sse import EventSourceResponse
 
-from .chat import _agent_logs
+from ..session_store import store
 
 router = APIRouter(prefix="/api/agent-logs", tags=["agent-logs"])
 
@@ -17,7 +17,7 @@ async def agent_logs_stream(request: Request, session_id: str):
             if await request.is_disconnected():
                 break
 
-            logs = _agent_logs.get(session_id, [])
+            logs = store.get_logs(session_id)
             if len(logs) > last_index:
                 for i in range(last_index, len(logs)):
                     entry = logs[i]

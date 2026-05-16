@@ -36,7 +36,7 @@ def compute_risk_score(alerts: list[dict]) -> int:
 
 @router.get("")
 async def get_dashboard(request: Request):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     supabase = get_supabase_client()
 
     dashboard = {

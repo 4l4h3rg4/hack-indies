@@ -1,8 +1,7 @@
 import json
 import logging
 
-from google.adk.models import Gemini
-from google.genai import types as genai_types
+from openai import AsyncOpenAI
 
 from ..config import settings
 
@@ -29,28 +28,57 @@ Conversación:
 Hechos extraídos (solo el JSON):"""
 
 
+def _build_extraction_client():
+    """Build an OpenAI-compatible client for fact extraction."""
+    if settings.using_openrouter:
+        return AsyncOpenAI(
+            base_url=settings.openrouter_base_url,
+            api_key=settings.openrouter_api_key,
+        )
+    # Fallback: use Google Gemini via the Google ADK native path
+    return None
+
+
 async def extract_facts(conversation: str) -> list[str]:
-    if not settings.google_api_key:
-        logger.warning("No Google API key configured, skipping fact extraction")
+    if settings.using_openrouter:
+        if not settings.openrouter_api_key or settings.openrouter_api_key.lower().startswith(
+            ("your-", "sk-placeholder", "placeholder")
+        ):
+            logger.warning("OpenRouter API key not configured, skipping fact extraction")
+            return []
+    elif not settings.google_api_key:
+        logger.warning("No API key configured, skipping fact extraction")
         return []
 
     try:
-        model = Gemini(
-            model=settings.llm_model,
-            api_key=settings.google_api_key,
-            temperature=0.1,
-        )
-
         prompt = EXTRACTION_PROMPT.format(conversation=conversation[-4000:])
 
-        response = await model.generate_content_async(
-            contents=[genai_types.Content(
-                role="user",
-                parts=[genai_types.Part.from_text(text=prompt)]
-            )]
-        )
+        if settings.using_openrouter:
+            client = _build_extraction_client()
+            response = await client.chat.completions.create(
+                model=settings.openrouter_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+            )
+            text = response.choices[0].message.content or ""
+        else:
+            from google.adk.models import Gemini
+            from google.genai import types as genai_types
 
-        text = response.text.strip()
+            model = Gemini(
+                model=settings.llm_model,
+                api_key=settings.google_api_key,
+                temperature=0.1,
+            )
+            response = await model.generate_content_async(
+                contents=[genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part.from_text(text=prompt)]
+                )]
+            )
+            text = response.text
+
+        text = text.strip()
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
         elif "```" in text:

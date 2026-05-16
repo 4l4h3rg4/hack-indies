@@ -35,7 +35,7 @@ class AlertStatus(str, Enum):
 
 
 class ConnectionOut(BaseModel):
-    id: str
+    id: int
     user_id: str
     service_type: str
     service_name: str
@@ -52,13 +52,13 @@ class ConnectionCreate(BaseModel):
 
 
 class AlertOut(BaseModel):
-    id: str
+    id: int
     user_id: str
     title: str
     description: str
     severity: AlertSeverity
     source_agent: str
-    connection_id: Optional[str] = None
+    connection_id: Optional[int] = None
     status: AlertStatus
     resolution_notes: Optional[str] = None
     created_at: Optional[datetime] = None
@@ -103,14 +103,14 @@ class MentalNoteCreate(BaseModel):
 
 
 class MentalNoteOut(BaseModel):
-    id: str
+    id: int
     content: str
     metadata: dict
     similarity: float
 
 
 class ChatSessionOut(BaseModel):
-    id: str
+    id: int
     user_id: str
     title: Optional[str]
     adk_session_id: str

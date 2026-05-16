@@ -1,9 +1,26 @@
+import logging
+
 from google.adk.agents import LlmAgent
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools import FunctionTool
 
-from ..config import settings
 from ..memory.retriever import search_mental_notes
-from ..tools.supabase_tools import get_user_connections, get_user_alerts
+from ..tools.supabase_tools import get_user_alerts, get_user_connections
+from .model_factory import build_model
+
+logger = logging.getLogger(__name__)
+
+
+async def _init_orchestrator_state(callback_context: CallbackContext) -> None:
+    state = callback_context.state
+    if "invocation_count" not in state:
+        state["invocation_count"] = 0
+    state["invocation_count"] = state.get("invocation_count", 0) + 1
+    logger.info(
+        "Orquestador: invocation #%s (session=%s)",
+        state["invocation_count"],
+        callback_context.session_id if hasattr(callback_context, "session_id") else "?",
+    )
 
 
 def build_orchestrator(inspector_agent=None, operator_agent=None):
@@ -15,7 +32,7 @@ def build_orchestrator(inspector_agent=None, operator_agent=None):
 
     orchestrator = LlmAgent(
         name="Orquestador",
-        model=settings.llm_model,
+        model=build_model(temperature=0.3),
         instruction="""Eres un CISO (Director de Seguridad) virtual para PyMEs llamado HackIndie.
 Tu misión es proteger digitalmente a pequeñas y medianas empresas de forma proactiva y autónoma.
 
@@ -31,7 +48,8 @@ REGLAS:
 FLUJO TÍPICO:
 - El usuario describe su problema o su stack tecnológico.
 - Si es necesario auditar, transfieres al Inspector automáticamente.
-- El Inspector reporta hallazgos de vuelta.
+- El Inspector guarda sus hallazgos en el estado 'audit_result'.
+- Al recibir el control de vuelta, lee el estado 'audit_result' para ver los resultados de la auditoría.
 - Tú interpretas los resultados y se los comunicas al usuario en lenguaje claro.
 - Si el usuario quiere solucionar algo, ofreces la opción de hacerlo automáticamente o dar instrucciones.
 - Si autoriza, transfieres al Operador.
@@ -47,5 +65,6 @@ HERRAMIENTAS DISPONIBLES:
             FunctionTool(get_user_connections),
             FunctionTool(get_user_alerts),
         ],
+        before_agent_callback=_init_orchestrator_state,
     )
     return orchestrator

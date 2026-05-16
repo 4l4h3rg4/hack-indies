@@ -1,5 +1,24 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+let getTokenFn: (() => Promise<string | null>) | null = null;
+
+export function setTokenProvider(fn: () => Promise<string | null>) {
+  getTokenFn = fn;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+  if (getTokenFn) {
+    const token = await getTokenFn();
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
+
+  return headers;
+}
+
 export interface DashboardData {
   risk_level: string;
   risk_score: number;
@@ -41,9 +60,9 @@ export interface AgentLogEntry {
   timestamp: string;
 }
 
-export async function fetchDashboard(userId: string = "default"): Promise<DashboardData> {
+export async function fetchDashboard(): Promise<DashboardData> {
   const res = await fetch(`${API_URL}/api/dashboard`, {
-    headers: { "X-User-Id": userId },
+    headers: await authHeaders(),
   });
   if (!res.ok) throw new Error("Failed to fetch dashboard");
   return res.json();
@@ -51,15 +70,11 @@ export async function fetchDashboard(userId: string = "default"): Promise<Dashbo
 
 export async function createChatStream(
   message: string,
-  sessionId: string,
-  userId: string = "default"
+  sessionId: string
 ): Promise<ReadableStream<Uint8Array>> {
   const res = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-User-Id": userId,
-    },
+    headers: await authHeaders(),
     body: JSON.stringify({ message, session_id: sessionId }),
   });
   if (!res.ok || !res.body) throw new Error("Failed to start chat stream");
@@ -69,41 +84,43 @@ export async function createChatStream(
 export async function fetchAgentLogsStream(
   sessionId: string
 ): Promise<ReadableStream<Uint8Array>> {
-  const res = await fetch(`${API_URL}/api/agent-logs/${sessionId}/stream`);
+  const res = await fetch(`${API_URL}/api/agent-logs/${sessionId}/stream`, {
+    headers: await authHeaders(),
+  });
   if (!res.ok || !res.body) throw new Error("Failed to fetch agent logs");
   return res.body;
 }
 
-export async function fetchConnections(userId: string = "default"): Promise<ConnectionData[]> {
+export async function fetchConnections(): Promise<ConnectionData[]> {
   const res = await fetch(`${API_URL}/api/connections`, {
-    headers: { "X-User-Id": userId },
+    headers: await authHeaders(),
   });
   if (!res.ok) return [];
   const data = await res.json();
   return data.connections || [];
 }
 
-export async function fetchAlerts(userId: string = "default"): Promise<AlertData[]> {
+export async function fetchAlerts(): Promise<AlertData[]> {
   const res = await fetch(`${API_URL}/api/alerts`, {
-    headers: { "X-User-Id": userId },
+    headers: await authHeaders(),
   });
   if (!res.ok) return [];
   const data = await res.json();
   return data.alerts || [];
 }
 
-export async function resolveAlert(alertId: string, userId: string = "default") {
+export async function resolveAlert(alertId: string) {
   const res = await fetch(`${API_URL}/api/alerts/${alertId}/resolve`, {
     method: "POST",
-    headers: { "X-User-Id": userId },
+    headers: await authHeaders(),
   });
   return res.json();
 }
 
-export async function dismissAlert(alertId: string, userId: string = "default") {
+export async function dismissAlert(alertId: string) {
   const res = await fetch(`${API_URL}/api/alerts/${alertId}/dismiss`, {
     method: "POST",
-    headers: { "X-User-Id": userId },
+    headers: await authHeaders(),
   });
   return res.json();
 }

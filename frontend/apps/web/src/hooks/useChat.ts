@@ -11,7 +11,7 @@ export interface ChatMessage {
   isStreaming?: boolean;
 }
 
-export function useChat(userId: string = "default") {
+export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const sessionIdRef = useRef(generateId());
@@ -40,7 +40,7 @@ export function useChat(userId: string = "default") {
       setIsLoading(true);
 
       try {
-        const stream = await createChatStream(text, sessionIdRef.current, userId);
+        const stream = await createChatStream(text, sessionIdRef.current);
         const reader = stream.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -100,7 +100,7 @@ export function useChat(userId: string = "default") {
         setIsLoading(false);
       }
     },
-    [isLoading, userId]
+    [isLoading]
   );
 
   const clearMessages = useCallback(() => {

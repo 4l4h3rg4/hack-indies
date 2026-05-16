@@ -18,6 +18,9 @@ out/
 *.swp
 *.swo
 
+# OpenCode
+opencode.json
+
 # Environment
 .env
 .env.local

@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 
 from ..config import settings
 from ..tools.supabase_tools import get_supabase_client
@@ -7,11 +8,26 @@ from .embedder import generate_single_embedding
 
 logger = logging.getLogger(__name__)
 
+# Nil UUID para desarrollo sin auth (válido como UUID pero no existe en auth.users)
+DEV_USER_ID = "00000000-0000-0000-0000-000000000000"
 
-async def search_mental_notes(query: str, user_id: str = "default", limit: int = 5) -> str:
+
+def _validate_user_id(user_id: str) -> str:
+    """Ensure user_id is a valid UUID string for Postgres RPC calls."""
+    try:
+        uuid.UUID(user_id)
+        return user_id
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid user_id '{user_id}', falling back to dev nil UUID")
+        return DEV_USER_ID
+
+
+async def search_mental_notes(query: str, user_id: str = DEV_USER_ID, limit: int = 5) -> str:
     """Search mental notes semantically. Used as ADK tool by the Orchestrator."""
     if not query.strip():
         return json.dumps({"notes": [], "message": "No query provided"})
+
+    user_id = _validate_user_id(user_id)
 
     try:
         embedding = await generate_single_embedding(query)

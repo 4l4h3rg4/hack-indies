@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 @router.get("")
 async def list_alerts(request: Request, status: str = None):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     supabase = get_supabase_client()
     if not supabase:
         return {"alerts": [], "message": "Supabase not configured"}
@@ -28,7 +28,7 @@ async def list_alerts(request: Request, status: str = None):
 
 @router.post("/{alert_id}/resolve")
 async def resolve_alert(request: Request, alert_id: str):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     supabase = get_supabase_client()
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase not configured")
@@ -49,7 +49,7 @@ async def resolve_alert(request: Request, alert_id: str):
 
 @router.post("/{alert_id}/dismiss")
 async def dismiss_alert(request: Request, alert_id: str):
-    user_id = getattr(request.state, "user_id", "default")
+    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
     supabase = get_supabase_client()
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase not configured")
