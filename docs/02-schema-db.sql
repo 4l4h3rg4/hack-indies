@@ -29,6 +29,7 @@ BEGIN
       company_name TEXT,
       risk_level TEXT DEFAULT 'unknown'
         CHECK (risk_level IN ('low', 'medium', 'high', 'critical', 'unknown')),
+      onboarding_completed BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
@@ -334,8 +335,13 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (NEW.id, NEW.email)
+  INSERT INTO public.profiles (id, email, full_name, company_name)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'company_name'
+  )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;

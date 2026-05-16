@@ -1,21 +1,12 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-let getTokenFn: (() => Promise<string | null>) | null = null;
-
-export function setTokenProvider(fn: () => Promise<string | null>) {
-  getTokenFn = fn;
-}
-
-async function authHeaders(): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-
-  if (getTokenFn) {
-    const token = await getTokenFn();
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+function authHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
   }
-
   return headers;
 }
 
@@ -60,21 +51,24 @@ export interface AgentLogEntry {
   timestamp: string;
 }
 
-export async function fetchDashboard(): Promise<DashboardData> {
+export async function fetchDashboard(
+  token: string | null
+): Promise<DashboardData> {
   const res = await fetch(`${API_URL}/api/dashboard`, {
-    headers: await authHeaders(),
+    headers: authHeaders(token),
   });
   if (!res.ok) throw new Error("Failed to fetch dashboard");
   return res.json();
 }
 
 export async function createChatStream(
+  token: string | null,
   message: string,
   sessionId: string
 ): Promise<ReadableStream<Uint8Array>> {
   const res = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
-    headers: await authHeaders(),
+    headers: authHeaders(token),
     body: JSON.stringify({ message, session_id: sessionId }),
   });
   if (!res.ok || !res.body) throw new Error("Failed to start chat stream");
@@ -82,45 +76,145 @@ export async function createChatStream(
 }
 
 export async function fetchAgentLogsStream(
+  token: string | null,
   sessionId: string
 ): Promise<ReadableStream<Uint8Array>> {
   const res = await fetch(`${API_URL}/api/agent-logs/${sessionId}/stream`, {
-    headers: await authHeaders(),
+    headers: authHeaders(token),
   });
   if (!res.ok || !res.body) throw new Error("Failed to fetch agent logs");
   return res.body;
 }
 
-export async function fetchConnections(): Promise<ConnectionData[]> {
+export async function fetchConnections(
+  token: string | null
+): Promise<ConnectionData[]> {
   const res = await fetch(`${API_URL}/api/connections`, {
-    headers: await authHeaders(),
+    headers: authHeaders(token),
   });
   if (!res.ok) return [];
   const data = await res.json();
   return data.connections || [];
 }
 
-export async function fetchAlerts(): Promise<AlertData[]> {
+export async function fetchAlerts(token: string | null): Promise<AlertData[]> {
   const res = await fetch(`${API_URL}/api/alerts`, {
-    headers: await authHeaders(),
+    headers: authHeaders(token),
   });
   if (!res.ok) return [];
   const data = await res.json();
   return data.alerts || [];
 }
 
-export async function resolveAlert(alertId: string) {
+export async function resolveAlert(token: string | null, alertId: string) {
   const res = await fetch(`${API_URL}/api/alerts/${alertId}/resolve`, {
     method: "POST",
-    headers: await authHeaders(),
+    headers: authHeaders(token),
   });
   return res.json();
 }
 
-export async function dismissAlert(alertId: string) {
+export async function dismissAlert(token: string | null, alertId: string) {
   const res = await fetch(`${API_URL}/api/alerts/${alertId}/dismiss`, {
     method: "POST",
-    headers: await authHeaders(),
+    headers: authHeaders(token),
   });
   return res.json();
+}
+
+export async function createConnection(
+  token: string | null,
+  serviceType: string,
+  serviceName: string,
+  credentials: Record<string, string>
+): Promise<ConnectionData> {
+  const res = await fetch(`${API_URL}/api/connections`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({
+      service_type: serviceType,
+      service_name: serviceName,
+      credentials,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || "Failed to create connection");
+  }
+  const data = await res.json();
+  return data.connection;
+}
+
+export async function deleteConnection(
+  token: string | null,
+  connectionId: string
+): Promise<void> {
+  const res = await fetch(`${API_URL}/api/connections/${connectionId}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("Failed to delete connection");
+}
+
+export async function testConnection(
+  token: string | null,
+  serviceType: string,
+  credentials: Record<string, string>
+): Promise<{
+  status: string;
+  tools?: string[];
+  tool_count?: number;
+  message?: string;
+}> {
+  const res = await fetch(`${API_URL}/api/connections/test`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify({
+      service_type: serviceType,
+      service_name: "test",
+      credentials,
+    }),
+  });
+  if (!res.ok) return { status: "error", message: "Error del servidor" };
+  return res.json();
+}
+
+export interface ProfileData {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  company_name: string | null;
+  risk_level: string;
+  onboarding_completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchProfile(
+  token: string | null
+): Promise<ProfileData> {
+  const res = await fetch(`${API_URL}/api/profile`, {
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error("Failed to fetch profile");
+  const data = await res.json();
+  return data.profile;
+}
+
+export async function updateProfile(
+  token: string | null,
+  fields: {
+    full_name?: string;
+    company_name?: string;
+    onboarding_completed?: boolean;
+  }
+): Promise<ProfileData> {
+  const res = await fetch(`${API_URL}/api/profile`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error("Failed to update profile");
+  const data = await res.json();
+  return data.profile;
 }

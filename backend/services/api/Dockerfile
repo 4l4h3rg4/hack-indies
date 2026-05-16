@@ -2,6 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Install Node.js 20 for MCP stdio connectors (npx)
+RUN apt-get update && apt-get install -y curl gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml .
 # NOTE: Keep this list in sync with pyproject.toml dependencies
 RUN pip install --no-cache-dir \

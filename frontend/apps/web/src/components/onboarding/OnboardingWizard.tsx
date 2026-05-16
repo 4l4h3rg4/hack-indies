@@ -2,21 +2,24 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, ArrowRight, ArrowLeft, Database, ShoppingCart, Cloud, Server, Check } from "lucide-react";
+import { Shield, ArrowRight, ArrowLeft, Database, ShoppingCart, Cloud, Server, Check, GitBranch, Bug, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
 interface OnboardingWizardProps {
-  onComplete: () => void;
+  onComplete: (data: { companyName: string; selectedServices: string[] }) => void;
 }
 
 const steps = ["Bienvenida", "Servicios", "Análisis"];
 
 const serviceOptions = [
-  { id: "supabase", name: "Supabase", icon: Database, desc: "Base de datos y autenticación" },
+  { id: "supabase", name: "Supabase", icon: Database, desc: "Base de datos y autenticacion" },
   { id: "shopify", name: "Shopify", icon: ShoppingCart, desc: "Tienda online y pagos" },
+  { id: "github", name: "GitHub", icon: GitBranch, desc: "Repositorios y CI/CD" },
+  { id: "vercel", name: "Vercel", icon: Globe, desc: "Deploy frontend y dominios" },
+  { id: "sentry", name: "Sentry", icon: Bug, desc: "Monitoreo de errores" },
   { id: "aws", name: "AWS", icon: Cloud, desc: "Infraestructura en la nube" },
   { id: "other", name: "Otro", icon: Server, desc: "Otro servicio o API" },
 ];
@@ -156,7 +159,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   ? `Vas a conectar ${selectedServices.length} servicio(s). Los agentes comenzarán a trabajar en cuanto termines.`
                   : "Puedes conectar servicios más tarde desde el panel. Los agentes están listos para ayudarte."}
               </p>
-              <Button onClick={onComplete} size="lg" className="gap-2">
+              <Button onClick={() => onComplete({ companyName, selectedServices })} size="lg" className="gap-2">
                 Ir al Dashboard
                 <ArrowRight className="size-4" />
               </Button>

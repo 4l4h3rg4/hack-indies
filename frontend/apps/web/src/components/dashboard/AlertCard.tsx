@@ -5,7 +5,11 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   ShieldCheck,
   ShieldX,
@@ -17,11 +21,17 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { AlertData } from "@/lib/api";
-import { resolveAlert, dismissAlert } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
 
 const severityConfig: Record<
   string,
-  { border: string; dot: string; bg: string; Icon: typeof ShieldAlert; label: string }
+  {
+    border: string;
+    dot: string;
+    bg: string;
+    Icon: typeof ShieldAlert;
+    label: string;
+  }
 > = {
   critical: {
     border: "border-l-risk-critical",
@@ -63,13 +73,14 @@ export function AlertCard({ alert, onUpdate }: AlertCardProps) {
   const [resolving, setResolving] = useState(false);
   const [dismissing, setDismissing] = useState(false);
   const [status, setStatus] = useState(alert.status);
+  const api = useApi();
 
   const cfg = severityConfig[alert.severity] || severityConfig.medium;
 
   const handleResolve = async () => {
     setResolving(true);
     try {
-      await resolveAlert(alert.id);
+      await api.resolveAlert(alert.id);
       setStatus("resolved");
       toast.success("Alerta enviada al Operador", {
         description: "La IA comenzará a resolverla en breve.",
@@ -85,7 +96,7 @@ export function AlertCard({ alert, onUpdate }: AlertCardProps) {
   const handleDismiss = async () => {
     setDismissing(true);
     try {
-      await dismissAlert(alert.id);
+      await api.dismissAlert(alert.id);
       setStatus("dismissed");
       toast("Alerta descartada", {
         description: "No se tomará acción sobre esta alerta.",
@@ -110,11 +121,18 @@ export function AlertCard({ alert, onUpdate }: AlertCardProps) {
       >
         <CardContent className="p-3">
           <div className="flex items-start gap-2">
-            <div className={cn("mt-0.5 size-2 rounded-full flex-shrink-0", cfg.dot)} />
+            <div
+              className={cn(
+                "mt-0.5 size-2 rounded-full flex-shrink-0",
+                cfg.dot
+              )}
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
                 <CollapsibleTrigger className="flex-1 text-left">
-                  <h4 className="text-sm font-medium leading-snug truncate">{alert.title}</h4>
+                  <h4 className="text-sm font-medium leading-snug truncate">
+                    {alert.title}
+                  </h4>
                 </CollapsibleTrigger>
                 <Badge variant="outline" className="text-[10px] h-5 px-1.5">
                   {cfg.label}
@@ -169,7 +187,10 @@ export function AlertCard({ alert, onUpdate }: AlertCardProps) {
               {alert.description && (
                 <CollapsibleTrigger className="flex items-center gap-1 mt-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
                   <ChevronDown
-                    className={cn("size-3 transition-transform", open && "rotate-180")}
+                    className={cn(
+                      "size-3 transition-transform",
+                      open && "rotate-180"
+                    )}
                   />
                   {open ? "Menos detalles" : "Más detalles"}
                 </CollapsibleTrigger>

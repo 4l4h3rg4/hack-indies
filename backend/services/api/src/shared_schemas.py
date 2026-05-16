@@ -47,8 +47,7 @@ class ConnectionOut(BaseModel):
 class ConnectionCreate(BaseModel):
     service_type: str
     service_name: str
-    encrypted_credentials: str
-    nonce: str
+    credentials: dict = {}
 
 
 class AlertOut(BaseModel):

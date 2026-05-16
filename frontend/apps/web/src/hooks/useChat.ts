@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
-import { createChatStream } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
 import { generateId } from "@/lib/utils";
 
 export interface ChatMessage {
@@ -16,6 +16,7 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false);
   const sessionIdRef = useRef(generateId());
   const abortRef = useRef<AbortController | null>(null);
+  const api = useApi();
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -40,7 +41,10 @@ export function useChat() {
       setIsLoading(true);
 
       try {
-        const stream = await createChatStream(text, sessionIdRef.current);
+        const stream = await api.createChatStream(
+          text,
+          sessionIdRef.current
+        );
         const reader = stream.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -82,7 +86,9 @@ export function useChat() {
           if (last && last.role === "assistant") {
             updated[updated.length - 1] = {
               ...last,
-              content: last.content || "Error: No se pudo procesar tu mensaje. Intenta de nuevo.",
+              content:
+                last.content ||
+                "Error: No se pudo procesar tu mensaje. Intenta de nuevo.",
               isStreaming: false,
             };
           }
@@ -100,7 +106,7 @@ export function useChat() {
         setIsLoading(false);
       }
     },
-    [isLoading]
+    [isLoading, api.createChatStream]
   );
 
   const clearMessages = useCallback(() => {
@@ -108,5 +114,11 @@ export function useChat() {
     sessionIdRef.current = generateId();
   }, []);
 
-  return { messages, isLoading, sendMessage, clearMessages, sessionId: sessionIdRef.current };
+  return {
+    messages,
+    isLoading,
+    sendMessage,
+    clearMessages,
+    sessionId: sessionIdRef.current,
+  };
 }

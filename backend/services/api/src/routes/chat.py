@@ -10,6 +10,7 @@ from sse_starlette.sse import EventSourceResponse
 from ..agents.inspector import build_inspector
 from ..agents.operator import build_operator
 from ..agents.orchestrator import build_orchestrator
+from ..crypto import decrypt_credentials
 from ..memory.extractor import extract_facts
 from ..memory.retriever import search_mental_notes, store_mental_notes_batch
 from ..session_store import store
@@ -40,7 +41,20 @@ async def _build_session_agents(user_id: str, session_id: str):
     mcp_toolsets = []
     for conn in connections:
         service_type = conn.get("service_type", "")
-        config = conn.get("connection_config", {})
+        conn_config = conn.get("connection_config", {})
+
+        encrypted = conn_config.get("encrypted", "")
+        nonce = conn_config.get("nonce", "")
+
+        if not encrypted:
+            continue
+
+        plaintext = decrypt_credentials(encrypted, nonce)
+        if plaintext:
+            config = json.loads(plaintext.decode("utf-8"))
+        else:
+            emit_log(...)
+
         toolset = build_mcp_toolset(service_type, config)
         if toolset:
             mcp_toolsets.append(toolset)
@@ -202,7 +216,10 @@ async def run_agent_stream(
 
 @router.post("")
 async def chat(request: Request, payload: ChatRequest):
-    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Autenticacion requerida")
     session_id = payload.session_id or str(uuid.uuid4())
 
     emit_log(session_id, "Orquestador", "🤖", "Nueva consulta recibida. Preparando agentes...")

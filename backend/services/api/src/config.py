@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
 
+    # ── Encryption ──
+    encryption_key: str = ""
+
     # ── Watcher ──
     watcher_interval_minutes: int = 60
     nvd_api_url: str = "https://services.nvd.nist.gov/rest/json/cves/2.0"

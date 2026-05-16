@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from ..tools.supabase_tools import get_supabase_client
 
@@ -36,7 +36,9 @@ def compute_risk_score(alerts: list[dict]) -> int:
 
 @router.get("")
 async def get_dashboard(request: Request):
-    user_id = getattr(request.state, "user_id", "00000000-0000-0000-0000-000000000000")
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Autenticacion requerida")
     supabase = get_supabase_client()
 
     dashboard = {

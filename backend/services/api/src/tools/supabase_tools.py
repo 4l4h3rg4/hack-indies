@@ -23,7 +23,7 @@ def get_supabase_client() -> Client | None:
     return _supabase_client
 
 
-def get_user_connections(user_id: str = "00000000-0000-0000-0000-000000000000") -> str:
+def get_user_connections(user_id: str = "") -> str:
     """List user's connected services. Used as ADK tool."""
     supabase = get_supabase_client()
     if not supabase:
@@ -38,7 +38,7 @@ def get_user_connections(user_id: str = "00000000-0000-0000-0000-000000000000") 
         return json.dumps({"connections": [], "message": str(e)})
 
 
-def get_user_alerts(user_id: str = "00000000-0000-0000-0000-000000000000") -> str:
+def get_user_alerts(user_id: str = "") -> str:
     """List user's active security alerts. Used as ADK tool."""
     supabase = get_supabase_client()
     if not supabase:

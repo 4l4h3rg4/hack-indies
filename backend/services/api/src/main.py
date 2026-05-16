@@ -2,12 +2,13 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-import jwt
-from fastapi import FastAPI, HTTPException, Request
+import httpx
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .config import settings
-from .routes import alerts, chat, connections, dashboard, sse
+from .routes import alerts, chat, connections, dashboard, profiles, sse
 from .tools.supabase_tools import get_supabase_client
 
 logging.basicConfig(level=logging.INFO)
@@ -60,6 +61,48 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.middleware("http")
+async def extract_user_id(request: Request, call_next):
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        request.state.user_id = None
+        return await call_next(request)
+
+    token = auth_header.split(" ", 1)[1]
+    user_id = await _validate_token(token)
+    if not user_id:
+        return JSONResponse(status_code=401, content={"detail": "Token invalido"})
+
+    request.state.user_id = user_id
+    return await call_next(request)
+
+
+async def _validate_token(token: str) -> str | None:
+    supabase_url = settings.supabase_url
+    if not supabase_url:
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{supabase_url}/auth/v1/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "apikey": settings.supabase_anon_key,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("id")
+            else:
+                logger.warning(f"Token validation failed: {resp.status_code}")
+                return None
+    except Exception as e:
+        logger.error(f"Token validation error: {e}")
+        return None
+
+
 if settings.app_debug:
     origins = ["*"]
 else:
@@ -74,46 +117,10 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def extract_user_id(request: Request, call_next):
-    # ── JWT Auth (production) ──
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header.split(" ", 1)[1]
-        try:
-            payload = jwt.decode(
-                token,
-                settings.supabase_jwt_secret,
-                algorithms=["HS256"],
-                options={"verify_exp": True, "verify_aud": False},
-            )
-            user_id = payload.get("sub", "unknown")
-        except jwt.ExpiredSignatureError:
-            if settings.app_debug:
-                user_id = "00000000-0000-0000-0000-000000000000"
-            else:
-                raise HTTPException(status_code=401, detail="Token expirado")
-        except jwt.InvalidTokenError:
-            if settings.app_debug:
-                user_id = "00000000-0000-0000-0000-000000000000"
-            else:
-                raise HTTPException(status_code=401, detail="Token inválido")
-    elif settings.app_debug:
-        # Fallback for development without auth
-        user_id = request.headers.get("X-User-Id", "00000000-0000-0000-0000-000000000000")
-        if not user_id or user_id == "default":
-            user_id = "00000000-0000-0000-0000-000000000000"
-    else:
-        user_id = "anonymous"
-
-    request.state.user_id = user_id
-    response = await call_next(request)
-    return response
-
-
 app.include_router(chat.router)
 app.include_router(dashboard.router)
 app.include_router(connections.router)
+app.include_router(profiles.router)
 app.include_router(alerts.router)
 app.include_router(sse.router)
 

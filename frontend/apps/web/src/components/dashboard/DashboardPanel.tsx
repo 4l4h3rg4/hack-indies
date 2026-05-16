@@ -46,7 +46,7 @@ export function DashboardPanel() {
               <Skeleton className="h-12 w-full rounded-lg" />
             </div>
           ) : (
-            <ServiceInventory connections={data?.connections || []} />
+            <ServiceInventory connections={data?.connections || []} onRefresh={refresh} />
           )}
 
           <Separator />

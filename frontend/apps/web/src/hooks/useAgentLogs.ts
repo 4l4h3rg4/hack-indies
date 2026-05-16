@@ -1,17 +1,19 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AgentLogEntry, fetchAgentLogsStream } from "@/lib/api";
+import { AgentLogEntry } from "@/lib/api";
+import { useApi } from "@/hooks/useApi";
 
 export function useAgentLogs(sessionId: string | null) {
   const [logs, setLogs] = useState<AgentLogEntry[]>([]);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const api = useApi();
 
   useEffect(() => {
     if (!sessionId) return;
 
     const startStream = async () => {
       try {
-        const stream = await fetchAgentLogsStream(sessionId);
+        const stream = await api.fetchAgentLogsStream(sessionId);
         readerRef.current = stream.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -47,7 +49,7 @@ export function useAgentLogs(sessionId: string | null) {
         readerRef.current.cancel();
       }
     };
-  }, [sessionId]);
+  }, [sessionId, api.fetchAgentLogsStream]);
 
   return logs;
 }

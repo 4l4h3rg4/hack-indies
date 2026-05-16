@@ -1,13 +1,12 @@
 import logging
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from typing import Optional
 
 from google.adk.tools.mcp_tool import McpToolset
-from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams, StreamableHTTPConnectionParams
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.client.streamable_http import streamablehttp_client
+from google.adk.tools.mcp_tool.mcp_session_manager import (
+    StdioConnectionParams,
+    StreamableHTTPConnectionParams,
+)
+from mcp import StdioServerParameters
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +16,8 @@ MCP_SERVER_CONFIGS = {
         "command": "npx",
         "args": ["-y", "@supabase/mcp-server-supabase"],
         "env_template": {
-            "SUPABASE_URL": "{url}",
-            "SUPABASE_SERVICE_KEY": "{service_key}",
+            "SUPABASE_ACCESS_TOKEN": "{access_token}",
+            "SUPABASE_PROJECT_REF": "{project_ref}",
         },
     },
     "shopify": {
@@ -28,6 +27,31 @@ MCP_SERVER_CONFIGS = {
         "env_template": {
             "SHOPIFY_ACCESS_TOKEN": "{access_token}",
             "SHOPIFY_STORE_URL": "{store_url}",
+        },
+    },
+    "github": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env_template": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "{personal_access_token}",
+        },
+    },
+    "postgresql": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres"],
+        "env_template": {
+            "DATABASE_URL": "{connection_string}",
+        },
+    },
+    "sentry": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-sentry"],
+        "env_template": {
+            "SENTRY_AUTH_TOKEN": "{auth_token}",
+            "SENTRY_ORGANIZATION_SLUG": "{organization_slug}",
         },
     },
     "filesystem": {
