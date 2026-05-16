@@ -1,0 +1,9 @@
+{
+  "name": "hackindies-frontend",
+  "private": true,
+  "scripts": {
+    "dev": "cd apps/web && npm run dev",
+    "build": "cd apps/web && npm run build",
+    "lint": "cd apps/web && npm run lint"
+  }
+}

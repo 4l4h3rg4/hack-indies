@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: ./backend/services/api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=development
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+    volumes:
+      - ./backend/services/api/src:/app/src:ro
+      - ./backend/shared/src:/app/shared:ro
+    restart: unless-stopped
+    networks:
+      - hackindies
+
+  frontend:
+    build:
+      context: ./frontend/apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - hackindies
+
+networks:
+  hackindies:
+    driver: bridge
