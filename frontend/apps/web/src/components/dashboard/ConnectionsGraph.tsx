@@ -23,10 +23,22 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  AlertTriangle,
+  Trash2,
+  CheckCircle,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ConnectionData } from "@/lib/api";
+import type { ConnectionData, AlertData } from "@/lib/api";
+
+export interface GraphActionProposal {
+  event_type: "graph_action_proposal";
+  action: string;
+  connection_id: string;
+  label: string;
+  message: string;
+}
 
 const serviceIcons: Record<string, LucideIcon> = {
   supabase: Database,
@@ -36,10 +48,17 @@ const serviceIcons: Record<string, LucideIcon> = {
   postgresql: Database,
   sentry: Bug,
   vercel: Globe,
+  vercel_deployment: Globe,
   generic_mcp: Server,
+  hostinger: Globe,
+  netlify: Globe,
+  railway: Server,
+  "fly.io": Cloud,
+  github_pages: GitBranch,
+  cloudflare_pages: Globe,
 };
 
-type Tone = "indigo" | "teal" | "green" | "red" | "amber" | "muted";
+type Tone = "indigo" | "teal" | "green" | "red" | "amber" | "muted" | "purple";
 
 const serviceTone: Record<string, Tone> = {
   supabase: "green",
@@ -49,7 +68,14 @@ const serviceTone: Record<string, Tone> = {
   postgresql: "green",
   sentry: "red",
   vercel: "muted",
+  vercel_deployment: "muted",
   generic_mcp: "muted",
+  hostinger: "purple",
+  netlify: "teal",
+  railway: "purple",
+  "fly.io": "indigo",
+  github_pages: "indigo",
+  cloudflare_pages: "amber",
 };
 
 const toneVar: Record<Tone, string> = {
@@ -59,34 +85,44 @@ const toneVar: Record<Tone, string> = {
   red:    "hsl(var(--risk-critical))",
   amber:  "hsl(var(--risk-high))",
   muted:  "hsl(var(--muted-foreground))",
+  purple: "hsl(272 72% 47%)",
 };
 
 // ── Node + Link types compatible with d3-force ──
 interface GNode extends SimulationNodeDatum {
   id: string;
-  kind: "center" | "service";
+  kind: "center" | "platform" | "deployment" | "service" | "alert";
   label: string;
   type: string;
   tone: Tone;
   status: string;
   Icon: LucideIcon;
   radius: number;
+  alertCount?: number;
+  url?: string;
+  parentId?: string;
 }
 
 interface GLink extends SimulationLinkDatum<GNode> {
   source: string | GNode;
   target: string | GNode;
+  distance?: number;
+  strength?: number;
 }
 
 function statusOk(status: string): boolean {
   return status === "connected";
 }
 function statusWarn(status: string): boolean {
-  return status === "requires_attention" || status === "error";
+  return status === "requires_attention" || status === "error" || status === "open";
 }
 
 interface ConnectionsGraphProps {
   connections: ConnectionData[];
+  alerts?: AlertData[];
+  pendingGraphAction?: GraphActionProposal | null;
+  onConfirmGraphAction?: () => void;
+  onCancelGraphAction?: () => void;
   onAddConnection?: () => void;
   userInitials?: string;
 }
@@ -95,6 +131,10 @@ const CENTER_ID = "__center__";
 
 export function ConnectionsGraph({
   connections,
+  alerts = [],
+  pendingGraphAction,
+  onConfirmGraphAction,
+  onCancelGraphAction,
   onAddConnection,
   userInitials = "U",
 }: ConnectionsGraphProps) {
@@ -108,7 +148,6 @@ export function ConnectionsGraph({
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Live snapshot of node positions for rendering (forces re-render on each tick)
   const [, setTick] = useState(0);
   const nodesRef = useRef<GNode[]>([]);
   const linksRef = useRef<GLink[]>([]);
@@ -134,8 +173,10 @@ export function ConnectionsGraph({
     const cx = dims.w / 2;
     const cy = dims.h / 2;
 
-    // Build nodes (preserving positions of nodes that already exist)
     const prev = new Map(nodesRef.current.map((n) => [n.id, n]));
+
+    const allNodes: GNode[] = [];
+    const allLinks: GLink[] = [];
 
     const centerNode: GNode = {
       id: CENTER_ID,
@@ -148,52 +189,146 @@ export function ConnectionsGraph({
       radius: 32,
       x: prev.get(CENTER_ID)?.x ?? cx,
       y: prev.get(CENTER_ID)?.y ?? cy,
-      // pin the center node — it shouldn't move
       fx: cx,
       fy: cy,
     };
+    allNodes.push(centerNode);
 
-    const serviceNodes: GNode[] = connections.map((c, i) => {
+    const platformNodesMap = new Map<string, GNode>();
+    const deploymentNodesMap = new Map<string, GNode>();
+    const serviceNodesMap = new Map<string, GNode>();
+
+    // Pass 1: Build regular services & platforms
+    connections.forEach((c) => {
       const old = prev.get(c.id);
-      const angle = (i / Math.max(connections.length, 1)) * Math.PI * 2;
-      const initialRadius = 180;
-      return {
-        id: c.id,
-        kind: "service",
-        label: c.service_name || c.service_type,
-        type: c.service_type,
-        tone: serviceTone[c.service_type] || "muted",
-        status: c.status,
-        Icon: serviceIcons[c.service_type] || Server,
-        radius: 22,
-        x: old?.x ?? cx + Math.cos(angle) * initialRadius,
-        y: old?.y ?? cy + Math.sin(angle) * initialRadius,
-        vx: old?.vx ?? 0,
-        vy: old?.vy ?? 0,
-      };
+      if (c.service_type === "vercel_deployment") {
+        const meta = (c.connection_config?.meta as any) || {};
+        const platName = meta.platform || "vercel";
+        const platId = `platform-${platName}`;
+        
+        let platNode = platformNodesMap.get(platId);
+        if (!platNode) {
+          const oldPlat = prev.get(platId);
+          platNode = {
+            id: platId,
+            kind: "platform",
+            label: platName.charAt(0).toUpperCase() + platName.slice(1),
+            type: "platform",
+            tone: "indigo",
+            status: "connected",
+            Icon: serviceIcons[platName] || Cloud,
+            radius: 28,
+            alertCount: 0,
+            x: oldPlat?.x ?? cx + Math.cos(Math.random() * Math.PI * 2) * 200,
+            y: oldPlat?.y ?? cy + Math.sin(Math.random() * Math.PI * 2) * 200,
+            vx: oldPlat?.vx ?? 0,
+            vy: oldPlat?.vy ?? 0,
+          };
+          platformNodesMap.set(platId, platNode);
+          allNodes.push(platNode);
+          allLinks.push({ source: CENTER_ID, target: platId, distance: 200, strength: 0.6 });
+        }
+
+        const depNode: GNode = {
+          id: c.id,
+          kind: "deployment",
+          label: c.service_name || meta.site_name || "Deployment",
+          type: "deployment",
+          tone: "muted",
+          status: c.status,
+          Icon: Globe,
+          radius: 20,
+          alertCount: 0,
+          url: meta.url,
+          parentId: platId,
+          x: old?.x ?? (platNode.x ?? cx) + 20,
+          y: old?.y ?? (platNode.y ?? cy) + 20,
+          vx: old?.vx ?? 0,
+          vy: old?.vy ?? 0,
+        };
+        deploymentNodesMap.set(c.id, depNode);
+        allNodes.push(depNode);
+        allLinks.push({ source: platId, target: c.id, distance: 150, strength: 0.7 });
+      } else {
+        const svcNode: GNode = {
+          id: c.id,
+          kind: "service",
+          label: c.service_name || c.service_type,
+          type: c.service_type,
+          tone: serviceTone[c.service_type] || "muted",
+          status: c.status,
+          Icon: serviceIcons[c.service_type] || Server,
+          radius: 22,
+          alertCount: 0,
+          x: old?.x ?? cx + Math.cos(Math.random() * Math.PI * 2) * 160,
+          y: old?.y ?? cy + Math.sin(Math.random() * Math.PI * 2) * 160,
+          vx: old?.vx ?? 0,
+          vy: old?.vy ?? 0,
+        };
+        serviceNodesMap.set(c.id, svcNode);
+        allNodes.push(svcNode);
+        allLinks.push({ source: CENTER_ID, target: c.id, distance: 160, strength: 0.6 });
+      }
     });
 
-    const allNodes = [centerNode, ...serviceNodes];
-    const links: GLink[] = serviceNodes.map((n) => ({
-      source: CENTER_ID,
-      target: n.id,
-    }));
+    // Pass 2: Connect deployments to services
+    connections.forEach((c) => {
+      if (c.service_type === "vercel_deployment") {
+        const meta = (c.connection_config?.meta as any) || {};
+        const connectedServices: string[] = meta.connected_services || [];
+        connectedServices.forEach(svcId => {
+          if (serviceNodesMap.has(svcId)) {
+            allLinks.push({ source: c.id, target: svcId, distance: 120, strength: 0.3 });
+          }
+        });
+      }
+    });
+
+    // Pass 3: Attach alerts
+    alerts.forEach(alert => {
+      if (alert.connection_id && alert.status !== "resolved" && alert.status !== "dismissed") {
+        const parentId = alert.connection_id;
+        const parentNode = deploymentNodesMap.get(parentId) || serviceNodesMap.get(parentId);
+        if (parentNode) {
+          parentNode.alertCount = (parentNode.alertCount || 0) + 1;
+          
+          const alertNodeId = `alert-${alert.id}`;
+          const oldAlert = prev.get(alertNodeId);
+          const alertNode: GNode = {
+            id: alertNodeId,
+            kind: "alert",
+            label: alert.title,
+            type: "alert",
+            tone: alert.severity === "critical" ? "red" : alert.severity === "high" ? "amber" : "muted",
+            status: "open",
+            Icon: AlertTriangle,
+            radius: 10,
+            parentId: parentId,
+            x: oldAlert?.x ?? (parentNode.x ?? cx) + 10,
+            y: oldAlert?.y ?? (parentNode.y ?? cy) + 10,
+            vx: oldAlert?.vx ?? 0,
+            vy: oldAlert?.vx ?? 0,
+          };
+          allNodes.push(alertNode);
+          allLinks.push({ source: parentId, target: alertNodeId, distance: 60, strength: 1.0 });
+        }
+      }
+    });
 
     nodesRef.current = allNodes;
-    linksRef.current = links;
+    linksRef.current = allLinks;
 
-    // Stop any previous simulation
     simulationRef.current?.stop();
 
     const sim = forceSimulation<GNode, GLink>(allNodes)
       .force(
         "link",
-        forceLink<GNode, GLink>(links)
+        forceLink<GNode, GLink>(allLinks)
           .id((d) => d.id)
-          .distance(150)
-          .strength(0.6)
+          .distance((d) => d.distance || 150)
+          .strength((d) => d.strength || 0.6)
       )
-      .force("charge", forceManyBody().strength(-450))
+      .force("charge", forceManyBody().strength(-400))
       .force("center", forceCenter(cx, cy).strength(0.04))
       .force("collide", forceCollide<GNode>().radius((d) => d.radius + 14))
       .alphaDecay(0.04)
@@ -205,9 +340,8 @@ export function ConnectionsGraph({
     return () => {
       sim.stop();
     };
-  }, [connections, dims.w, dims.h]);
+  }, [connections, alerts, dims.w, dims.h]);
 
-  // Convert client coords to SVG/world coords (accounting for pan + zoom)
   const clientToWorld = useCallback(
     (clientX: number, clientY: number) => {
       const svg = svgRef.current;
@@ -215,8 +349,6 @@ export function ConnectionsGraph({
       const rect = svg.getBoundingClientRect();
       const localX = clientX - rect.left;
       const localY = clientY - rect.top;
-      // svg viewBox = 0,0,w,h. Transform = translate(pan) scale(zoom) translate(-cx, -cy) etc.
-      // We're using CSS transform on the svg — undo it:
       const cx = dims.w / 2;
       const cy = dims.h / 2;
       const x = (localX - cx - pan.x) / zoom + cx;
@@ -226,9 +358,8 @@ export function ConnectionsGraph({
     [dims, pan, zoom]
   );
 
-  // Node drag handlers
   const onNodeMouseDown = (e: React.MouseEvent, node: GNode) => {
-    if (node.kind === "center") return; // center is pinned
+    if (node.kind === "center") return;
     e.stopPropagation();
     const sim = simulationRef.current;
     if (!sim) return;
@@ -243,7 +374,6 @@ export function ConnectionsGraph({
     sim.alphaTarget(0.3).restart();
   };
 
-  // Canvas drag (pan)
   const onCanvasMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("[data-node]")) return;
     panDragRef.current = {
@@ -256,7 +386,6 @@ export function ConnectionsGraph({
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      // node drag
       const drag = draggingRef.current;
       if (drag) {
         const node = nodesRef.current.find((n) => n.id === drag.nodeId);
@@ -267,7 +396,6 @@ export function ConnectionsGraph({
         }
         return;
       }
-      // canvas pan
       const p = panDragRef.current;
       if (p) {
         setPan({
@@ -305,16 +433,16 @@ export function ConnectionsGraph({
   };
 
   const nodes = nodesRef.current;
-  const serviceNodes = nodes.filter((n) => n.kind === "service");
+  const renderableNodes = nodes.filter((n) => n.kind !== "center");
   const centerNode = nodes.find((n) => n.kind === "center");
   const selectedNode = selectedId
-    ? serviceNodes.find((n) => n.id === selectedId)
+    ? renderableNodes.find((n) => n.id === selectedId)
     : null;
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0 relative">
       {/* Header */}
-      <div className="flex items-center gap-3 h-12 px-5 border-b border-border bg-card/95 backdrop-blur-md flex-shrink-0">
+      <div className="flex items-center gap-3 h-12 px-5 border-b border-border bg-card/95 backdrop-blur-md flex-shrink-0 z-20">
         <div>
           <h2 className="text-[13.5px] font-semibold tracking-tight leading-none">
             Mapa de conexiones
@@ -366,7 +494,7 @@ export function ConnectionsGraph({
       {/* Graph canvas */}
       <div
         ref={containerRef}
-        className="flex-1 relative overflow-hidden bg-background select-none"
+        className="flex-1 relative overflow-hidden bg-background select-none z-0"
         onMouseDown={onCanvasMouseDown}
         style={{
           backgroundImage:
@@ -375,7 +503,7 @@ export function ConnectionsGraph({
           cursor: panDragRef.current ? "grabbing" : "grab",
         }}
       >
-        {serviceNodes.length === 0 && !centerNode ? null : connections.length === 0 ? (
+        {renderableNodes.length === 0 && !centerNode ? null : connections.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
             <div className="size-14 rounded-xl border border-dashed border-border flex items-center justify-center">
               <Server className="size-6 text-muted-foreground/50" strokeWidth={1.5} />
@@ -432,22 +560,43 @@ export function ConnectionsGraph({
             )}
 
             {/* Edges */}
-            {centerNode &&
-              serviceNodes.map((n) => {
-                const isActive = hoverId === n.id || selectedId === n.id;
-                return (
-                  <line
-                    key={`edge-${n.id}`}
-                    x1={centerNode.x}
-                    y1={centerNode.y}
-                    x2={n.x}
-                    y2={n.y}
-                    stroke={isActive ? toneVar[n.tone] : "hsl(var(--border))"}
-                    strokeWidth={isActive ? 1.5 : 1}
-                    strokeOpacity={isActive ? 0.9 : 0.5}
-                  />
-                );
-              })}
+            {linksRef.current.map((link, idx) => {
+              const s = typeof link.source === 'string' ? nodes.find(n => n.id === link.source) : link.source;
+              const t = typeof link.target === 'string' ? nodes.find(n => n.id === link.target) : link.target;
+              if (!s || !t) return null;
+              
+              const isActive = hoverId === s.id || hoverId === t.id || selectedId === s.id || selectedId === t.id;
+              
+              let stroke = "hsl(var(--border))";
+              let strokeWidth = 1;
+              let strokeOpacity = 0.5;
+              let strokeDasharray = undefined;
+
+              if (t.kind === "alert") {
+                stroke = t.tone === "red" ? toneVar.red : t.tone === "amber" ? toneVar.amber : stroke;
+                strokeWidth = 1.5;
+                strokeOpacity = 0.7;
+                strokeDasharray = "4 2";
+              } else if (isActive) {
+                stroke = toneVar[t.tone] || toneVar.indigo;
+                strokeWidth = 1.5;
+                strokeOpacity = 0.9;
+              }
+
+              return (
+                <line
+                  key={`edge-${s.id}-${t.id}-${idx}`}
+                  x1={s.x}
+                  y1={s.y}
+                  x2={t.x}
+                  y2={t.y}
+                  stroke={stroke}
+                  strokeWidth={strokeWidth}
+                  strokeOpacity={strokeOpacity}
+                  strokeDasharray={strokeDasharray}
+                />
+              );
+            })}
 
             {/* Center node */}
             {centerNode && (
@@ -494,16 +643,50 @@ export function ConnectionsGraph({
               </g>
             )}
 
-            {/* Service nodes */}
-            {serviceNodes.map((n) => {
+            {/* Service & Platform nodes */}
+            {renderableNodes.map((n) => {
               const isHover = hoverId === n.id;
               const isSelected = selectedId === n.id;
               const isActive = isHover || isSelected;
               const ok = statusOk(n.status);
-              const warn = statusWarn(n.status);
-              const nodeColor = toneVar[n.tone];
+              const warn = statusWarn(n.status) || (n.alertCount ? n.alertCount > 0 : false);
+              const nodeColor = toneVar[n.tone] || toneVar.muted;
               const x = n.x ?? 0;
               const y = n.y ?? 0;
+              const r = n.radius;
+              const isAlert = n.kind === "alert";
+
+              if (isAlert) {
+                const isRed = n.tone === "red";
+                return (
+                  <g
+                    key={n.id}
+                    data-node
+                    style={{ cursor: "pointer" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedId(isSelected ? null : n.id);
+                    }}
+                    className={isRed ? "animate-pulse" : ""}
+                  >
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={r}
+                      fill="hsl(var(--card))"
+                      stroke={nodeColor}
+                      strokeWidth={1.5}
+                      filter={isRed ? "url(#glow)" : undefined}
+                    />
+                    <circle cx={x} cy={y} r={r-2} fill={nodeColor} fillOpacity={0.2} />
+                    <foreignObject x={x - r/2} y={y - r/2} width={r} height={r} style={{ pointerEvents: "none" }}>
+                      <div className="flex items-center justify-center w-full h-full" style={{ color: nodeColor }}>
+                        <n.Icon className="size-[10px]" strokeWidth={2} />
+                      </div>
+                    </foreignObject>
+                  </g>
+                );
+              }
 
               return (
                 <g
@@ -523,7 +706,7 @@ export function ConnectionsGraph({
                     <circle
                       cx={x}
                       cy={y}
-                      r={28}
+                      r={r + 6}
                       fill="none"
                       stroke={nodeColor}
                       strokeWidth={1}
@@ -535,7 +718,7 @@ export function ConnectionsGraph({
                   <circle
                     cx={x}
                     cy={y}
-                    r={22}
+                    r={r}
                     fill="hsl(var(--card))"
                     stroke={nodeColor}
                     strokeWidth={isActive ? 2 : 1.5}
@@ -545,31 +728,43 @@ export function ConnectionsGraph({
                   <circle
                     cx={x}
                     cy={y}
-                    r={20}
+                    r={r - 2}
                     fill={nodeColor}
                     fillOpacity={isActive ? 0.2 : 0.1}
                   />
 
-                  {/* status dot */}
-                  <circle
-                    cx={x + 16}
-                    cy={y - 16}
-                    r={4}
-                    fill={
-                      ok
-                        ? "hsl(var(--risk-low))"
-                        : warn
-                          ? "hsl(var(--risk-high))"
-                          : "hsl(var(--muted-foreground))"
-                    }
-                    stroke="hsl(var(--card))"
-                    strokeWidth={2}
-                  />
+                  {/* status dot (for services/deployments) */}
+                  {n.kind !== "platform" && (
+                    <circle
+                      cx={x + r * 0.7}
+                      cy={y - r * 0.7}
+                      r={n.kind === "deployment" ? 3 : 4}
+                      fill={
+                        ok && !warn
+                          ? "hsl(var(--risk-low))"
+                          : warn
+                            ? "hsl(var(--risk-high))"
+                            : "hsl(var(--muted-foreground))"
+                      }
+                      stroke="hsl(var(--card))"
+                      strokeWidth={2}
+                    />
+                  )}
+
+                  {/* alert count badge */}
+                  {n.alertCount && n.alertCount > 0 && (
+                    <g transform={`translate(${x + r - 4}, ${y - r - 4})`}>
+                      <circle cx={0} cy={0} r={6} fill="hsl(var(--risk-high))" />
+                      <text x={0} y={3} textAnchor="middle" fontSize={8} fontWeight="bold" fill="white">
+                        {n.alertCount}
+                      </text>
+                    </g>
+                  )}
 
                   {/* label */}
                   <text
                     x={x}
-                    y={y + 40}
+                    y={y + r + 16}
                     textAnchor="middle"
                     fontSize={11}
                     fontWeight={600}
@@ -584,7 +779,7 @@ export function ConnectionsGraph({
                   </text>
                   <text
                     x={x}
-                    y={y + 53}
+                    y={y + r + 28}
                     textAnchor="middle"
                     fontSize={9}
                     fontWeight={500}
@@ -596,17 +791,17 @@ export function ConnectionsGraph({
 
                   {/* Icon via foreignObject */}
                   <foreignObject
-                    x={x - 8}
-                    y={y - 8}
-                    width={16}
-                    height={16}
+                    x={x - r/2}
+                    y={y - r/2}
+                    width={r}
+                    height={r}
                     style={{ pointerEvents: "none" }}
                   >
                     <div
-                      className="flex items-center justify-center"
+                      className="flex items-center justify-center w-full h-full"
                       style={{ color: nodeColor }}
                     >
-                      <n.Icon className="size-[14px]" strokeWidth={1.8} />
+                      <n.Icon className={n.kind === "deployment" ? "size-[12px]" : "size-[14px]"} strokeWidth={1.8} />
                     </div>
                   </foreignObject>
                 </g>
@@ -617,16 +812,16 @@ export function ConnectionsGraph({
 
         {/* Selected node panel */}
         {selectedNode && (
-          <div className="absolute top-4 right-4 w-[240px] rounded-xl border border-border bg-card/95 backdrop-blur-md shadow-xl p-3.5 z-10 animate-slide-in-up">
+          <div className="absolute top-4 right-4 w-[280px] rounded-xl border border-border bg-card/95 backdrop-blur-md shadow-xl p-3.5 z-10 animate-slide-in-up">
             <div className="flex items-start gap-3 mb-3">
               <div
                 className={cn(
                   "size-9 rounded-md flex items-center justify-center flex-shrink-0 border"
                 )}
                 style={{
-                  backgroundColor: toneVar[selectedNode.tone] + "1A",
-                  borderColor: toneVar[selectedNode.tone] + "40",
-                  color: toneVar[selectedNode.tone],
+                  backgroundColor: (toneVar[selectedNode.tone] || toneVar.muted) + "1A",
+                  borderColor: (toneVar[selectedNode.tone] || toneVar.muted) + "40",
+                  color: toneVar[selectedNode.tone] || toneVar.muted,
                 }}
               >
                 <selectedNode.Icon className="size-4" strokeWidth={1.8} />
@@ -635,8 +830,8 @@ export function ConnectionsGraph({
                 <h4 className="text-[13px] font-semibold leading-tight truncate">
                   {selectedNode.label}
                 </h4>
-                <p className="text-[10.5px] text-muted-foreground mt-1">
-                  {selectedNode.type}
+                <p className="text-[10.5px] text-muted-foreground mt-1 capitalize">
+                  {selectedNode.kind}
                 </p>
               </div>
               <button
@@ -648,42 +843,117 @@ export function ConnectionsGraph({
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[11px]">
-              <span
-                className={cn(
-                  "size-[5px] rounded-full",
-                  statusOk(selectedNode.status) && "bg-risk-low",
-                  statusWarn(selectedNode.status) && "bg-risk-high",
-                  !statusOk(selectedNode.status) &&
-                    !statusWarn(selectedNode.status) &&
-                    "bg-muted-foreground/40"
+            {selectedNode.kind === "alert" ? (
+              <div className="space-y-3">
+                <div className="text-[11px] text-muted-foreground">
+                  <span className="font-semibold text-foreground">Severidad:</span> {selectedNode.tone === "red" ? "Crítica" : selectedNode.tone === "amber" ? "Alta" : "Media"}
+                </div>
+                <button className="w-full text-xs bg-primary text-primary-foreground py-1.5 rounded flex items-center justify-center gap-1 hover:opacity-90">
+                  <CheckCircle className="size-3" /> Resolver
+                </button>
+              </div>
+            ) : selectedNode.kind === "deployment" ? (
+              <div className="space-y-2">
+                {selectedNode.url && (
+                  <div className="text-[11px] truncate">
+                    <span className="text-muted-foreground">URL: </span>
+                    <a href={selectedNode.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                      {selectedNode.url.replace(/^https?:\/\//, '')}
+                    </a>
+                  </div>
                 )}
-              />
-              <span
-                className={cn(
-                  "font-medium",
-                  statusOk(selectedNode.status) && "text-risk-low",
-                  statusWarn(selectedNode.status) && "text-risk-high",
-                  !statusOk(selectedNode.status) &&
-                    !statusWarn(selectedNode.status) &&
-                    "text-muted-foreground"
-                )}
+                <div className="text-[11px]">
+                  <span className="text-muted-foreground">Plataforma: </span>
+                  {selectedNode.parentId?.replace('platform-', '')}
+                </div>
+              </div>
+            ) : selectedNode.kind === "platform" ? (
+              <div className="text-[11px]">
+                <span className="text-muted-foreground">Deployments activos: </span>
+                {nodes.filter(n => n.parentId === selectedNode.id).length}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span
+                  className={cn(
+                    "size-[5px] rounded-full",
+                    statusOk(selectedNode.status) && "bg-risk-low",
+                    statusWarn(selectedNode.status) && "bg-risk-high",
+                    !statusOk(selectedNode.status) &&
+                      !statusWarn(selectedNode.status) &&
+                      "bg-muted-foreground/40"
+                  )}
+                />
+                <span
+                  className={cn(
+                    "font-medium",
+                    statusOk(selectedNode.status) && "text-risk-low",
+                    statusWarn(selectedNode.status) && "text-risk-high",
+                    !statusOk(selectedNode.status) &&
+                      !statusWarn(selectedNode.status) &&
+                      "text-muted-foreground"
+                  )}
+                >
+                  {statusOk(selectedNode.status)
+                    ? "Conectado"
+                    : statusWarn(selectedNode.status)
+                      ? "Requiere atención"
+                      : "Desconectado"}
+                </span>
+              </div>
+            )}
+            
+            {/* Alertas vinculadas para services y deployments */}
+            {(selectedNode.kind === "service" || selectedNode.kind === "deployment") && selectedNode.alertCount && selectedNode.alertCount > 0 ? (
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-[11px] font-semibold text-risk-high flex items-center gap-1">
+                  <AlertTriangle className="size-3" />
+                  {selectedNode.alertCount} alerta(s) activa(s)
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* AI Action Banner */}
+        {pendingGraphAction && (
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 bg-card/95 backdrop-blur-md border border-border shadow-2xl rounded-xl p-4 flex flex-col gap-3 z-30 min-w-[320px] max-w-[400px] animate-slide-in-up">
+            <div className="flex items-start gap-3">
+              <div className="size-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center flex-shrink-0">
+                {pendingGraphAction.action === "delete_connection" ? <Trash2 className="size-4" /> : <AlertTriangle className="size-4" />}
+              </div>
+              <div className="flex-1 min-w-0 pt-0.5">
+                <h4 className="text-sm font-semibold leading-tight mb-1">Acción propuesta por IA</h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">{pendingGraphAction.message}</p>
+                <div className="mt-2 bg-muted/50 rounded-md p-2 text-xs border border-border/50">
+                  <span className="font-medium text-foreground">{pendingGraphAction.label}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 w-full mt-1">
+              <button
+                onClick={onCancelGraphAction}
+                className="flex-1 h-8 rounded-md bg-secondary text-secondary-foreground text-xs font-semibold hover:bg-secondary/80 transition-colors flex items-center justify-center gap-1.5"
               >
-                {statusOk(selectedNode.status)
-                  ? "Conectado"
-                  : statusWarn(selectedNode.status)
-                    ? "Requiere atención"
-                    : "Desconectado"}
-              </span>
+                <XCircle className="size-3.5" />
+                Cancelar
+              </button>
+              <button
+                onClick={onConfirmGraphAction}
+                className="flex-1 h-8 rounded-md bg-destructive text-destructive-foreground text-xs font-semibold hover:bg-destructive/90 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle className="size-3.5" />
+                Confirmar
+              </button>
             </div>
           </div>
         )}
 
         {/* Footer */}
-        <div className="absolute bottom-3 left-3 text-[10px] text-muted-foreground/60 font-mono select-none pointer-events-none">
+        <div className="absolute bottom-3 left-3 text-[10px] text-muted-foreground/60 font-mono select-none pointer-events-none z-10">
           {Math.round(zoom * 100)}%
         </div>
-        <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground/60 select-none pointer-events-none">
+        <div className="absolute bottom-3 right-3 text-[10px] text-muted-foreground/60 select-none pointer-events-none z-10">
           Arrastrá los nodos · scroll para zoom
         </div>
       </div>

@@ -61,6 +61,103 @@ def get_user_alerts(user_id: str = "") -> str:
         return json.dumps({"alerts": [], "message": str(e)})
 
 
+def create_connection(
+    service_type: str,
+    service_name: str,
+    user_id: str = "",
+    meta: dict = None,
+    connected_services: list[str] = None,
+) -> str:
+    """Create a new service connection for the user. Used as ADK tool.
+
+    Args:
+        service_type: e.g. 'vercel_deployment', 'supabase', 'shopify', 'github', 'postgresql', 'sentry', 'vercel', 'generic_mcp'
+        service_name: Human-readable name (e.g. 'Mi tienda Shopify', 'Landing page en Vercel')
+        user_id: The user's UUID (provided by the agent context)
+        meta: Optional metadata dict. For vercel_deployment: {'platform':'hostinger','url':'https://...','site_name':'...'}
+        connected_services: Optional list of connection IDs this deployment depends on
+    """
+    supabase = get_supabase_client()
+    if not supabase:
+        return json.dumps({"success": False, "message": "Base de datos no configurada"})
+
+    if not user_id:
+        return json.dumps({"success": False, "message": "Se requiere user_id"})
+
+    connection_config: dict = {}
+    if meta:
+        connection_config["meta"] = meta
+    if connected_services:
+        if "meta" not in connection_config:
+            connection_config["meta"] = {}
+        connection_config["meta"]["connected_services"] = connected_services
+
+    # Auto-create platform node for vercel_deployment
+    platform_created = False
+    platform_conn_id = None
+    if service_type == "vercel_deployment" and meta and meta.get("platform"):
+        platform_name = meta["platform"]
+        platform_label = platform_name[0].upper() + platform_name[1:]
+        try:
+            existing = (
+                supabase.table("connections")
+                .select("id")
+                .eq("user_id", user_id)
+                .eq("service_type", platform_name)
+                .execute()
+            )
+            if not existing.data:
+                plat_resp = (
+                    supabase.table("connections")
+                    .insert({
+                        "user_id": user_id,
+                        "service_type": platform_name,
+                        "service_name": platform_label,
+                        "connection_config": {},
+                        "status": "connected",
+                    })
+                    .execute()
+                )
+                if plat_resp.data:
+                    platform_created = True
+                    platform_conn_id = plat_resp.data[0].get("id")
+                    logger.info(f"Auto-created platform node: {platform_label}")
+            else:
+                platform_conn_id = existing.data[0].get("id")
+        except Exception as e:
+            logger.warning(f"Could not auto-create platform '{platform_name}': {e}")
+
+    try:
+        resp = (
+            supabase.table("connections")
+            .insert({
+                "user_id": user_id,
+                "service_type": service_type,
+                "service_name": service_name,
+                "connection_config": connection_config,
+                "status": "connected",
+            })
+            .execute()
+        )
+        if resp.data:
+            conn = resp.data[0]
+            result = {
+                "success": True,
+                "message": f"Conexión '{service_name}' ({service_type}) creada exitosamente",
+                "connection_id": conn.get("id"),
+                "service_type": service_type,
+                "service_name": service_name,
+            }
+            if platform_created:
+                result["message"] += f". También se creó el nodo de plataforma '{platform_label}'"
+                result["platform_connection_id"] = platform_conn_id
+            return json.dumps(result, default=str, ensure_ascii=False)
+        return json.dumps({"success": False, "message": "No se pudo crear la conexión"})
+    except Exception as e:
+        logger.error(f"Failed to create connection: {e}")
+        return json.dumps({"success": False, "message": str(e)[:200]})
+
+
 def store_alert(
     user_id: str,
     title: str,

@@ -67,7 +67,7 @@ async def _build_session_agents(user_id: str, session_id: str):
 
     inspector = build_inspector(mcp_toolsets[:] if mcp_toolsets else None)
     operator = build_operator(mcp_toolsets[:] if mcp_toolsets else None)
-    orchestrator = build_orchestrator(inspector, operator)
+    orchestrator = build_orchestrator(inspector, operator, user_id=user_id)
 
     emit_log(session_id, "Orquestador", "🤖", "Consultando apuntes mentales del usuario...")
     notes_json = await search_mental_notes(
@@ -203,6 +203,46 @@ async def run_agent_stream(
                             "data": {"tool": tool_name},
                         }),
                     }
+                    
+                    if tool_name == "delete_connection":
+                        tool_args = getattr(action.tool_use, "args", {})
+                        if isinstance(tool_args, dict):
+                            conn_id = tool_args.get("connection_id", "")
+                        else:
+                            try:
+                                conn_id = dict(tool_args).get("connection_id", "")
+                            except Exception:
+                                conn_id = ""
+                                
+                        if conn_id:
+                            label = "Conexión seleccionada"
+                            supabase = get_supabase_client()
+                            if supabase:
+                                try:
+                                    resp = supabase.table("connections").select("service_name").eq("id", conn_id).execute()
+                                    if resp.data:
+                                        label = resp.data[0].get("service_name", label)
+                                except Exception:
+                                    pass
+                            
+                            yield {
+                                "event": "graph_action",
+                                "data": json.dumps({
+                                    "event_type": "graph_action_proposal",
+                                    "action": "delete_connection",
+                                    "connection_id": conn_id,
+                                    "label": label,
+                                    "message": "¿Eliminamos esta conexión del grafo de infraestructura?",
+                                })
+                            }
+
+    if not full_response.strip():
+        fallback = "Procesé tu consulta internamente. ¿Hay algo más en lo que pueda ayudarte con tu ciberseguridad?"
+        yield {
+            "event": "token",
+            "data": json.dumps({"event_type": "text", "content": fallback}),
+        }
+        full_response = fallback
 
     yield {
         "event": "done",
@@ -238,7 +278,7 @@ async def chat(request: Request, payload: ChatRequest):
         session_info = store.get_session_info(session_id)
         if session_info:
             full_response = session_info.get("full_response", "")
-            if full_response:
+            if full_response and not full_response.startswith("Error:"):
                 emit_log(session_id, "Orquestador", "🤖", "Extrayendo aprendizajes de la conversación...")
                 facts = await extract_facts(
                     f"Usuario: {payload.message}\n\nAsistente: {full_response}"

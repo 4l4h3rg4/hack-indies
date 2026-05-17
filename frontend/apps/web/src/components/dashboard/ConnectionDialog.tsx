@@ -29,15 +29,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useApi } from "@/hooks/useApi";
+import { useDashboard } from "@/hooks/useDashboard";
 
 interface ServiceField {
   key: string;
   label: string;
-  placeholder: string;
+  placeholder?: string;
   type?: string;
   hint?: string;
   helpUrl?: string;
   helpLabel?: string;
+  options?: { value: string; label: string }[];
+  isConnectionsSelector?: boolean;
 }
 
 interface ServiceDef {
@@ -164,6 +167,51 @@ const SERVICE_DEFS: ServiceDef[] = [
     ],
   },
   {
+    id: "vercel_deployment",
+    label: "Sitio Web / Deployment",
+    icon: Globe,
+    description: "Un sitio web, app o deployment (Hostinger, Vercel, Netlify, etc.)",
+    fields: [
+      {
+        key: "meta.platform",
+        label: "Plataforma",
+        type: "select",
+        options: [
+          { value: "vercel", label: "Vercel" },
+          { value: "hostinger", label: "Hostinger" },
+          { value: "netlify", label: "Netlify" },
+          { value: "aws", label: "AWS" },
+          { value: "railway", label: "Railway" },
+          { value: "fly.io", label: "Fly.io" },
+          { value: "github_pages", label: "GitHub Pages" },
+          { value: "cloudflare_pages", label: "Cloudflare Pages" },
+          { value: "otro", label: "Otro" }
+        ],
+        placeholder: "Seleccionar plataforma",
+      },
+      {
+        key: "meta.site_name",
+        label: "Nombre del sitio",
+        placeholder: "Ej: Web de promoción",
+      },
+      {
+        key: "meta.url",
+        label: "URL",
+        placeholder: "https://mi-sitio.com",
+      },
+      {
+        key: "meta.platform_id",
+        label: "Project ID (opcional)",
+        placeholder: "prj_...",
+      },
+      {
+        key: "meta.connected_services",
+        label: "Servicios que utiliza este sitio",
+        isConnectionsSelector: true,
+      }
+    ],
+  },
+  {
     id: "generic_mcp",
     label: "HTTP MCP",
     icon: Server,
@@ -193,7 +241,7 @@ export function ConnectionDialog({
   const [step, setStep] = useState<"select" | "configure" | "test">("select");
   const [serviceType, setServiceType] = useState<string>("");
   const [serviceName, setServiceName] = useState("");
-  const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [credentials, setCredentials] = useState<Record<string, any>>({});
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -204,6 +252,7 @@ export function ConnectionDialog({
   } | null>(null);
   const [error, setError] = useState("");
   const api = useApi();
+  const { data: dashboard } = useDashboard();
 
   const selectedDef = SERVICE_DEFS.find((s) => s.id === serviceType);
 
@@ -225,21 +274,50 @@ export function ConnectionDialog({
 
   const handleSelect = (id: string) => {
     setServiceType(id);
-    setCredentials({});
+    setCredentials(id === "vercel_deployment" ? { meta: { platform: "vercel", connected_services: [] } } : {});
     setError("");
     setStep("configure");
   };
 
-  const handleFieldChange = (key: string, value: string) => {
-    setCredentials((prev) => ({ ...prev, [key]: value }));
+  const handleFieldChange = (key: string, value: any) => {
+    setCredentials((prev) => {
+      if (key.startsWith("meta.")) {
+        const metaKey = key.replace("meta.", "");
+        return {
+          ...prev,
+          meta: {
+            ...prev.meta,
+            [metaKey]: value,
+          },
+        };
+      }
+      return { ...prev, [key]: value };
+    });
+  };
+
+  const getFieldValue = (key: string) => {
+    if (key.startsWith("meta.")) {
+      return credentials.meta?.[key.replace("meta.", "")] || "";
+    }
+    return credentials[key] || "";
   };
 
   const isFormValid = () => {
     if (!selectedDef) return false;
-    return selectedDef.fields.every((f) => credentials[f.key]?.trim());
+    return selectedDef.fields.every((f) => {
+      if (f.key === "meta.platform_id") return true; // optional
+      if (f.isConnectionsSelector) return true; // optional
+      const val = getFieldValue(f.key);
+      return typeof val === "string" ? val.trim().length > 0 : true;
+    });
   };
 
   const handleTest = async () => {
+    if (serviceType === "vercel_deployment") {
+      handleSave(); // Skip test for deployments
+      return;
+    }
+
     setTesting(true);
     setTestResult(null);
     setError("");
@@ -275,7 +353,7 @@ export function ConnectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {step === "select" && "Conectar servicio"}
@@ -286,7 +364,7 @@ export function ConnectionDialog({
             {step === "select" &&
               "Elige el servicio que quieres conectar a HackIndie"}
             {step === "configure" &&
-              "Ingresa las credenciales de acceso"}
+              "Ingresa los detalles"}
             {step === "test" &&
               "Verifica que todo funcione antes de guardar"}
           </DialogDescription>
@@ -323,7 +401,7 @@ export function ConnectionDialog({
           <div className="space-y-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Nombre del servicio
+                Nombre {serviceType === "vercel_deployment" ? "del componente" : "del servicio"}
               </label>
               <Input
                 value={serviceName}
@@ -337,14 +415,55 @@ export function ConnectionDialog({
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {field.label}
                 </label>
-                <Input
-                  type={field.type || "text"}
-                  value={credentials[field.key] || ""}
-                  onChange={(e) =>
-                    handleFieldChange(field.key, e.target.value)
-                  }
-                  placeholder={field.placeholder}
-                />
+
+                {field.type === "select" ? (
+                  <select
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={getFieldValue(field.key)}
+                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                  >
+                    {field.options?.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                ) : field.isConnectionsSelector ? (
+                  <div className="flex flex-col gap-2 max-h-40 overflow-y-auto border border-border/50 rounded-md p-2 bg-card/50">
+                    {dashboard?.connections?.filter(c => c.service_type !== 'vercel_deployment').map(conn => {
+                      const isChecked = (credentials.meta?.connected_services || []).includes(conn.id);
+                      return (
+                        <label key={conn.id} className="flex items-center gap-2 cursor-pointer p-1 hover:bg-muted/50 rounded">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-border text-primary focus:ring-primary"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const curr = credentials.meta?.connected_services || [];
+                              if (e.target.checked) {
+                                handleFieldChange(field.key, [...curr, conn.id]);
+                              } else {
+                                handleFieldChange(field.key, curr.filter((id: string) => id !== conn.id));
+                              }
+                            }}
+                          />
+                          <span className="text-sm">{conn.service_name || conn.service_type}</span>
+                        </label>
+                      );
+                    })}
+                    {(!dashboard?.connections || dashboard.connections.filter(c => c.service_type !== 'vercel_deployment').length === 0) && (
+                      <span className="text-xs text-muted-foreground italic">No hay servicios conectados.</span>
+                    )}
+                  </div>
+                ) : (
+                  <Input
+                    type={field.type || "text"}
+                    value={getFieldValue(field.key)}
+                    onChange={(e) =>
+                      handleFieldChange(field.key, e.target.value)
+                    }
+                    placeholder={field.placeholder}
+                  />
+                )}
+                
                 {(field.hint || field.helpUrl) && (
                   <div className="rounded-md bg-muted/50 border border-border/50 px-3 py-2 space-y-1">
                     {field.hint && (
@@ -383,12 +502,21 @@ export function ConnectionDialog({
               </Button>
               <Button
                 size="sm"
-                onClick={() => setStep("test")}
+                onClick={() => serviceType === "vercel_deployment" ? handleSave() : setStep("test")}
                 disabled={!isFormValid()}
                 className="flex-1 gap-1"
               >
-                Continuar
-                <ChevronRight className="size-3" />
+                {serviceType === "vercel_deployment" ? (
+                  <>
+                    {saving && <Loader2 className="size-3 animate-spin" />}
+                    Guardar Deployment
+                  </>
+                ) : (
+                  <>
+                    Continuar
+                    <ChevronRight className="size-3" />
+                  </>
+                )}
               </Button>
             </div>
           </div>

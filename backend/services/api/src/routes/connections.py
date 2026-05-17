@@ -44,6 +44,7 @@ async def create_connection(request: Request, payload: ConnectionCreate):
         raise HTTPException(status_code=503, detail="Supabase not configured")
 
     try:
+        meta = payload.credentials.pop("meta", None)
         has_credentials = any(v for v in payload.credentials.values())
         connection_config = {}
         status = "disconnected"
@@ -58,6 +59,11 @@ async def create_connection(request: Request, payload: ConnectionCreate):
                 "nonce": encrypted["nonce"],
             }
             status = "connected"
+            
+        if meta:
+            connection_config["meta"] = meta
+            if not has_credentials:
+                status = "connected"
 
         resp = (
             supabase.table("connections")

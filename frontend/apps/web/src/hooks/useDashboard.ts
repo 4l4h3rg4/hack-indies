@@ -1,28 +1,37 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { type DashboardData } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
-export function useDashboard(refreshInterval = 10000) {
+export function useDashboard(refreshInterval = 15000) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const api = useApi();
+  const apiRef = useRef(api);
+  apiRef.current = api;
+  const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
     try {
-      const d = await api.fetchDashboard();
-      setData(d);
+      const d = await apiRef.current.fetchDashboard();
+      if (mountedRef.current) {
+        setData(d);
+        setLoading(false);
+      }
     } catch (err) {
       console.error("Dashboard fetch error:", err);
-    } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
-  }, [api.fetchDashboard]);
+  }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     refresh();
     const interval = setInterval(refresh, refreshInterval);
-    return () => clearInterval(interval);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(interval);
+    };
   }, [refresh, refreshInterval]);
 
   return { data, loading, refresh };

@@ -61,7 +61,7 @@ function AuthenticatedHome() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   const { user } = useAuth();
-  const { messages, isLoading, sendMessage, sessionId } = useChat();
+  const { messages, isLoading, sendMessage, sessionId, pendingGraphAction, setPendingGraphAction } = useChat();
   const agentLogs = useAgentLogs(sessionId);
   const { data: dashboard } = useDashboard();
   const api = useApi();
@@ -205,7 +205,17 @@ function AuthenticatedHome() {
               {isConnectionsView ? (
                 <ConnectionsGraph
                   connections={dashboard?.connections || []}
+                  alerts={dashboard?.recent_alerts || []}
                   userInitials={userInitials}
+                  pendingGraphAction={pendingGraphAction}
+                  onConfirmGraphAction={() => {
+                    if (pendingGraphAction?.action === "delete_connection") {
+                      api.deleteConnection(pendingGraphAction.connection_id).then(() => setPendingGraphAction(null));
+                    } else {
+                      setPendingGraphAction(null);
+                    }
+                  }}
+                  onCancelGraphAction={() => setPendingGraphAction(null)}
                 />
               ) : (
                 <ChatPanel

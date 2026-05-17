@@ -11,9 +11,18 @@ export interface ChatMessage {
   isStreaming?: boolean;
 }
 
+export interface GraphActionProposal {
+  event_type: "graph_action_proposal";
+  action: string;
+  connection_id: string;
+  label: string;
+  message: string;
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingGraphAction, setPendingGraphAction] = useState<GraphActionProposal | null>(null);
   const sessionIdRef = useRef(generateId());
   const abortRef = useRef<AbortController | null>(null);
   const api = useApi();
@@ -73,6 +82,8 @@ export function useChat() {
                     }
                     return updated;
                   });
+                } else if (data.event_type === "graph_action_proposal") {
+                  setPendingGraphAction(data);
                 }
               } catch {}
             }
@@ -120,5 +131,7 @@ export function useChat() {
     sendMessage,
     clearMessages,
     sessionId: sessionIdRef.current,
+    pendingGraphAction,
+    setPendingGraphAction,
   };
 }
