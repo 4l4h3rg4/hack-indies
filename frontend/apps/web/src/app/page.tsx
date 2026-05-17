@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { AppHeader } from "@/components/layout/AppHeader";
+import { AppHeader, type AppSection } from "@/components/layout/AppHeader";
 import { MobileNav, type MobilePanel } from "@/components/layout/MobileNav";
 import { DashboardPanel } from "@/components/dashboard/DashboardPanel";
 import { ConnectionsPanel } from "@/components/dashboard/ConnectionsPanel";
+import { ConnectionsGraph } from "@/components/dashboard/ConnectionsGraph";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { AgentActivityFeed } from "@/components/agents/AgentActivityFeed";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
@@ -19,6 +21,7 @@ import { ApiProvider } from "@/contexts/ApiContext";
 export default function Home() {
   const { user, loading: authLoading, getToken } = useAuth();
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -41,6 +44,7 @@ export default function Home() {
   }
 
   if (!user) {
+    router.replace("/login");
     return null;
   }
 
@@ -53,12 +57,26 @@ export default function Home() {
 
 function AuthenticatedHome() {
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("chat");
+  const [section, setSection] = useState<AppSection>("dashboard");
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
+  const { user } = useAuth();
   const { messages, isLoading, sendMessage, sessionId } = useChat();
   const agentLogs = useAgentLogs(sessionId);
   const { data: dashboard } = useDashboard();
   const api = useApi();
+
+  const userInitials = (() => {
+    if (!user) return "U";
+    const meta = (user.user_metadata as Record<string, string> | undefined) || {};
+    const name = meta.full_name || meta.name || user.email || "";
+    return name
+      .split(/\s+/)
+      .map((p) => p[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  })();
 
   useEffect(() => {
     api
@@ -119,10 +137,11 @@ function AuthenticatedHome() {
   }
 
   const alertCount = dashboard?.total_alerts || 0;
+  const isConnectionsView = section === "conexiones";
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <AppHeader />
+      <AppHeader active={section} onActiveChange={setSection} />
 
       {/* ── Mobile layout ── */}
       <div className="flex-1 flex overflow-hidden md:hidden">
@@ -169,18 +188,57 @@ function AuthenticatedHome() {
 
       {/* ── Desktop layout (≥768px) ── */}
       <div className="hidden md:flex flex-1 overflow-hidden">
-        <aside className="w-80 flex-shrink-0 border-r bg-card/30 hidden md:block">
+        <aside className="w-[244px] flex-shrink-0 border-r border-border bg-card hidden md:block">
           <DashboardPanel />
         </aside>
-        <section className="flex-1 flex flex-col min-w-0">
-          <ChatPanel
-            messages={messages}
-            isLoading={isLoading}
-            onSend={sendMessage}
-          />
+
+        <section className="flex-1 flex flex-col min-w-0 bg-background">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={isConnectionsView ? "graph" : "chat"}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="flex-1 flex flex-col min-h-0"
+            >
+              {isConnectionsView ? (
+                <ConnectionsGraph
+                  connections={dashboard?.connections || []}
+                  userInitials={userInitials}
+                />
+              ) : (
+                <ChatPanel
+                  messages={messages}
+                  isLoading={isLoading}
+                  onSend={sendMessage}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </section>
-        <aside className="hidden lg:block w-72 flex-shrink-0 border-l bg-card/30">
-          <AgentActivityFeed logs={agentLogs} />
+
+        <aside className="hidden lg:block w-[272px] flex-shrink-0 border-l border-border bg-card">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={isConnectionsView ? "chat" : "activity"}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="h-full"
+            >
+              {isConnectionsView ? (
+                <ChatPanel
+                  messages={messages}
+                  isLoading={isLoading}
+                  onSend={sendMessage}
+                />
+              ) : (
+                <AgentActivityFeed logs={agentLogs} />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </aside>
       </div>
     </div>

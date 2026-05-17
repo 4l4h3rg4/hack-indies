@@ -2,70 +2,38 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  ShieldCheck,
-  ShieldX,
-  ChevronDown,
-  Loader2,
-  AlertTriangle,
-  ShieldAlert,
-  Info,
-} from "lucide-react";
+import { ShieldCheck, ShieldX, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { AlertData } from "@/lib/api";
 import { useApi } from "@/hooks/useApi";
 
-const severityConfig: Record<
-  string,
-  {
-    border: string;
-    dot: string;
-    bg: string;
-    Icon: typeof ShieldAlert;
-    label: string;
-  }
-> = {
-  critical: {
-    border: "border-l-risk-critical",
-    dot: "bg-risk-critical",
-    bg: "bg-risk-critical/5",
-    Icon: ShieldAlert,
-    label: "Crítica",
-  },
-  high: {
-    border: "border-l-risk-high",
-    dot: "bg-risk-high",
-    bg: "bg-risk-high/5",
-    Icon: AlertTriangle,
-    label: "Alta",
-  },
-  medium: {
-    border: "border-l-risk-medium",
-    dot: "bg-risk-medium",
-    bg: "bg-risk-medium/5",
-    Icon: AlertTriangle,
-    label: "Media",
-  },
-  low: {
-    border: "border-l-risk-low",
-    dot: "bg-risk-low",
-    bg: "bg-risk-low/5",
-    Icon: Info,
-    label: "Baja",
-  },
+const severityConfig: Record<string, { stripe: string; label: string }> = {
+  critical: { stripe: "bg-risk-critical",      label: "Crítico" },
+  high:     { stripe: "bg-risk-high",          label: "Alto" },
+  medium:   { stripe: "bg-risk-medium",        label: "Medio" },
+  low:      { stripe: "bg-muted-foreground/40",label: "Bajo" },
 };
 
 interface AlertCardProps {
   alert: AlertData;
   onUpdate?: () => void;
+}
+
+function timeAgo(iso?: string | null) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "ahora";
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  return `hace ${d} d`;
 }
 
 export function AlertCard({ alert, onUpdate }: AlertCardProps) {
@@ -76,6 +44,7 @@ export function AlertCard({ alert, onUpdate }: AlertCardProps) {
   const api = useApi();
 
   const cfg = severityConfig[alert.severity] || severityConfig.medium;
+  const ago = timeAgo(alert.created_at);
 
   const handleResolve = async () => {
     setResolving(true);
@@ -98,9 +67,7 @@ export function AlertCard({ alert, onUpdate }: AlertCardProps) {
     try {
       await api.dismissAlert(alert.id);
       setStatus("dismissed");
-      toast("Alerta descartada", {
-        description: "No se tomará acción sobre esta alerta.",
-      });
+      toast("Alerta descartada");
       onUpdate?.();
     } catch {
       toast.error("No se pudo descartar");
@@ -111,94 +78,88 @@ export function AlertCard({ alert, onUpdate }: AlertCardProps) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <Card
+      <div
         className={cn(
-          "border-l-[3px] transition-all hover:shadow-sm",
-          cfg.border,
-          cfg.bg,
-          status !== "open" && "opacity-60"
+          "group flex gap-2.5 px-2.5 py-2 rounded-md hover:bg-secondary/60 transition-colors cursor-pointer items-start",
+          status !== "open" && "opacity-50"
         )}
       >
-        <CardContent className="p-3">
-          <div className="flex items-start gap-2">
-            <div
-              className={cn(
-                "mt-0.5 size-2 rounded-full flex-shrink-0",
-                cfg.dot
-              )}
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <CollapsibleTrigger className="flex-1 text-left">
-                  <h4 className="text-sm font-medium leading-snug truncate">
-                    {alert.title}
-                  </h4>
-                </CollapsibleTrigger>
-                <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                  {cfg.label}
-                </Badge>
+        {/* Severity stripe */}
+        <span
+          className={cn(
+            "w-[3px] self-stretch rounded-full flex-shrink-0 min-h-[28px]",
+            cfg.stripe
+          )}
+        />
+
+        <div className="flex-1 min-w-0">
+          <CollapsibleTrigger className="block text-left w-full">
+            <p className="text-[11.5px] font-medium leading-snug">
+              {alert.title}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {cfg.label}
+              {ago && ` · ${ago}`}
+            </p>
+          </CollapsibleTrigger>
+
+          <CollapsibleContent>
+            <p className="text-[11px] text-muted-foreground mt-2 mb-2.5 leading-relaxed">
+              {alert.description}
+            </p>
+            {alert.source_agent && (
+              <p className="text-[10px] text-muted-foreground/60 mb-2">
+                Detectado por: {alert.source_agent}
+              </p>
+            )}
+
+            {status === "open" ? (
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleResolve}
+                  disabled={resolving}
+                  className="flex-1 flex items-center justify-center gap-1.5 h-7 text-[11px] font-medium rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {resolving ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="size-3" />
+                  )}
+                  Solucionar
+                </button>
+                <button
+                  onClick={handleDismiss}
+                  disabled={dismissing}
+                  className="size-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
+                  title="Descartar"
+                >
+                  {dismissing ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ShieldX className="size-3" />
+                  )}
+                </button>
               </div>
+            ) : (
+              <span className="inline-flex text-[10px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+                {status === "resolved" ? "Resuelta" : "Descartada"}
+              </span>
+            )}
+          </CollapsibleContent>
 
-              <CollapsibleContent>
-                <p className="text-xs text-muted-foreground mt-1.5 mb-2 leading-relaxed">
-                  {alert.description}
-                </p>
-                <p className="text-[10px] text-muted-foreground/60 mb-2">
-                  Detectado por: {alert.source_agent}
-                </p>
-              </CollapsibleContent>
-
-              {status === "open" ? (
-                <div className="flex gap-2 mt-2">
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="h-8 text-xs flex-1"
-                    onClick={handleResolve}
-                    disabled={resolving}
-                  >
-                    {resolving ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <ShieldCheck className="size-3" />
-                    )}
-                    <span className="ml-1.5">Solucionar con IA</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 text-xs"
-                    onClick={handleDismiss}
-                    disabled={dismissing}
-                  >
-                    {dismissing ? (
-                      <Loader2 className="size-3 animate-spin" />
-                    ) : (
-                      <ShieldX className="size-3" />
-                    )}
-                  </Button>
-                </div>
-              ) : (
-                <Badge variant="secondary" className="mt-1.5 text-[10px]">
-                  {status === "resolved" ? "Resuelta" : "Descartada"}
-                </Badge>
-              )}
-
-              {alert.description && (
-                <CollapsibleTrigger className="flex items-center gap-1 mt-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-                  <ChevronDown
-                    className={cn(
-                      "size-3 transition-transform",
-                      open && "rotate-180"
-                    )}
-                  />
-                  {open ? "Menos detalles" : "Más detalles"}
-                </CollapsibleTrigger>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          {alert.description && (
+            <CollapsibleTrigger className="flex items-center gap-1 mt-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronDown
+                className={cn(
+                  "size-3 transition-transform",
+                  open && "rotate-180"
+                )}
+              />
+              {open ? "Menos" : "Más detalles"}
+            </CollapsibleTrigger>
+          )}
+        </div>
+      </div>
     </Collapsible>
   );
 }

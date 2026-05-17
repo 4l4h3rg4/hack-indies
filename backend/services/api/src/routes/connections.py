@@ -107,8 +107,22 @@ async def test_connection(request: Request, payload: ConnectionCreate):
             return {"status": "ok", "tools": tools[:20], "tool_count": len(tools)}
         return {
             "status": "error",
-            "message": "No se pudieron listar las herramientas. Verifica que las credenciales sean correctas y que el servicio MCP este accesible.",
+            "message": (
+                f"No se pudo conectar al servidor MCP de '{payload.service_type}'. "
+                "Posibles causas: credenciales incorrectas, permisos insuficientes, "
+                "o el servidor MCP no está disponible. "
+                "Podés guardar igual y el agente reintentará cuando lo use."
+            ),
         }
     except Exception as e:
-        logger.error(f"Test connection failed: {e}")
-        return {"status": "error", "message": str(e)[:300]}
+        logger.error(f"Test connection failed for {payload.service_type}: {e}")
+        error_msg = str(e)
+        if "npm" in error_msg.lower() or "npx" in error_msg.lower():
+            error_msg = "Error al iniciar el servidor MCP. Verifica que las credenciales tengan el formato correcto."
+        elif "timeout" in error_msg.lower():
+            error_msg = "Timeout: el servidor MCP tardó demasiado en responder."
+        elif "401" in error_msg or "403" in error_msg or "unauthorized" in error_msg.lower():
+            error_msg = "Credenciales inválidas o sin permisos suficientes."
+        else:
+            error_msg = error_msg[:200]
+        return {"status": "error", "message": error_msg}

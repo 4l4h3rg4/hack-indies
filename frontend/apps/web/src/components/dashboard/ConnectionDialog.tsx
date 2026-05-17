@@ -13,6 +13,8 @@ import {
   Globe,
   GitBranch,
   Bug,
+  ExternalLink,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +35,9 @@ interface ServiceField {
   label: string;
   placeholder: string;
   type?: string;
+  hint?: string;
+  helpUrl?: string;
+  helpLabel?: string;
 }
 
 interface ServiceDef {
@@ -54,11 +59,17 @@ const SERVICE_DEFS: ServiceDef[] = [
         key: "access_token",
         label: "Personal Access Token (PAT)",
         placeholder: "sbp_...",
+        hint: "Token personal de tu cuenta Supabase. NO es la service key del proyecto.",
+        helpUrl: "https://supabase.com/dashboard/account/tokens",
+        helpLabel: "Generar token → Account → Access Tokens",
       },
       {
         key: "project_ref",
         label: "Project Reference",
         placeholder: "abcdefghijklmnopqrst",
+        hint: "ID único de tu proyecto. Lo ves en la URL del dashboard: supabase.com/dashboard/project/[ref]",
+        helpUrl: "https://supabase.com/dashboard",
+        helpLabel: "Ver en Settings → General → Reference ID",
       },
     ],
   },
@@ -68,11 +79,19 @@ const SERVICE_DEFS: ServiceDef[] = [
     icon: ShoppingCart,
     description: "Tienda online y e-commerce",
     fields: [
-      { key: "access_token", label: "Access Token", placeholder: "shpat_..." },
+      {
+        key: "access_token",
+        label: "Access Token",
+        placeholder: "shpat_...",
+        hint: "Token de una Custom App en tu tienda. Requiere permisos de lectura en productos y pedidos.",
+        helpUrl: "https://admin.shopify.com/settings/apps/development",
+        helpLabel: "Crear en Settings → Apps → Develop apps",
+      },
       {
         key: "store_url",
         label: "Store URL",
         placeholder: "https://my-store.myshopify.com",
+        hint: "URL completa de tu tienda en formato .myshopify.com",
       },
     ],
   },
@@ -86,6 +105,9 @@ const SERVICE_DEFS: ServiceDef[] = [
         key: "personal_access_token",
         label: "Personal Access Token",
         placeholder: "ghp_...",
+        hint: "Necesita permisos: repo, read:org, read:packages. Usa un Fine-grained token para más seguridad.",
+        helpUrl: "https://github.com/settings/tokens/new",
+        helpLabel: "Crear en Settings → Developer settings → Tokens",
       },
     ],
   },
@@ -99,6 +121,7 @@ const SERVICE_DEFS: ServiceDef[] = [
         key: "connection_string",
         label: "Connection String",
         placeholder: "postgresql://user:pass@host:5432/db",
+        hint: "Formato: postgresql://usuario:contraseña@host:puerto/base_de_datos",
       },
     ],
   },
@@ -108,11 +131,19 @@ const SERVICE_DEFS: ServiceDef[] = [
     icon: Bug,
     description: "Monitoreo de errores y rendimiento",
     fields: [
-      { key: "auth_token", label: "Auth Token", placeholder: "sntrys_..." },
+      {
+        key: "auth_token",
+        label: "Auth Token",
+        placeholder: "sntrys_...",
+        hint: "Token de autenticación de tu cuenta Sentry. Necesita permisos de lectura en proyectos y eventos.",
+        helpUrl: "https://sentry.io/settings/account/api/auth-tokens/",
+        helpLabel: "Crear en Settings → Account → API → Auth Tokens",
+      },
       {
         key: "organization_slug",
         label: "Organization Slug",
-        placeholder: "my-org",
+        placeholder: "mi-empresa",
+        hint: "El slug de tu org aparece en la URL de Sentry: sentry.io/organizations/[slug]",
       },
     ],
   },
@@ -122,7 +153,14 @@ const SERVICE_DEFS: ServiceDef[] = [
     icon: Globe,
     description: "Deploy frontend, dominios y edge",
     fields: [
-      { key: "access_token", label: "Access Token", placeholder: "..." },
+      {
+        key: "access_token",
+        label: "Access Token",
+        placeholder: "...",
+        hint: "Token personal de tu cuenta Vercel con acceso a proyectos.",
+        helpUrl: "https://vercel.com/account/settings/tokens",
+        helpLabel: "Crear en Account Settings → Tokens",
+      },
     ],
   },
   {
@@ -135,6 +173,7 @@ const SERVICE_DEFS: ServiceDef[] = [
         key: "url",
         label: "MCP Endpoint URL",
         placeholder: "https://mcp.example.com/sse",
+        hint: "URL del servidor MCP compatible con el protocolo SSE o Streamable HTTP.",
       },
     ],
   },
@@ -236,7 +275,7 @@ export function ConnectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>
             {step === "select" && "Conectar servicio"}
@@ -255,23 +294,26 @@ export function ConnectionDialog({
 
         {/* Step 1: Select service type */}
         {step === "select" && (
-          <div className="grid grid-cols-2 gap-2 max-h-[320px] overflow-y-auto">
+          <div className="flex flex-col gap-1.5 max-h-[380px] overflow-y-auto pr-1">
             {SERVICE_DEFS.map((svc) => (
-              <Card
+              <button
                 key={svc.id}
                 onClick={() => handleSelect(svc.id)}
-                className="cursor-pointer hover:bg-accent/40 transition-colors active:scale-95"
+                className="group flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2.5 text-left transition-all hover:border-primary/40 hover:bg-primary/5 active:scale-[0.99]"
               >
-                <CardContent className="p-3 flex flex-col items-center text-center gap-1">
-                  <div className="flex items-center justify-center size-10 rounded-xl bg-primary/10 text-primary">
-                    <svc.icon className="size-5" />
-                  </div>
-                  <span className="text-sm font-medium">{svc.label}</span>
-                  <span className="text-[10px] text-muted-foreground leading-tight">
+                <div className="flex items-center justify-center size-9 rounded-lg bg-primary/10 text-primary flex-shrink-0 transition-colors group-hover:bg-primary/20">
+                  <svc.icon className="size-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground leading-tight">
+                    {svc.label}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-tight truncate mt-0.5">
                     {svc.description}
-                  </span>
-                </CardContent>
-              </Card>
+                  </p>
+                </div>
+                <ChevronRight className="size-3.5 text-muted-foreground/50 flex-shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+              </button>
             ))}
           </div>
         )}
@@ -303,6 +345,29 @@ export function ConnectionDialog({
                   }
                   placeholder={field.placeholder}
                 />
+                {(field.hint || field.helpUrl) && (
+                  <div className="rounded-md bg-muted/50 border border-border/50 px-3 py-2 space-y-1">
+                    {field.hint && (
+                      <div className="flex items-start gap-1.5">
+                        <Info className="size-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          {field.hint}
+                        </p>
+                      </div>
+                    )}
+                    {field.helpUrl && (
+                      <a
+                        href={field.helpUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] text-primary hover:underline font-medium w-fit"
+                      >
+                        <ExternalLink className="size-3" />
+                        {field.helpLabel || field.helpUrl}
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
 
@@ -378,6 +443,17 @@ export function ConnectionDialog({
               </div>
             )}
 
+            {testResult?.status === "error" && (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2">
+                <div className="flex items-start gap-1.5">
+                  <Info className="size-3 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 leading-relaxed">
+                    Podés guardar igualmente — el agente intentará conectarse cuando lo necesite. Asegurate de que las credenciales sean correctas.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -401,9 +477,7 @@ export function ConnectionDialog({
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={
-                  saving || (!!testResult && testResult.status !== "ok")
-                }
+                disabled={saving}
                 className="gap-1"
               >
                 {saving && <Loader2 className="size-3 animate-spin" />}

@@ -3,131 +3,140 @@
 @tailwind utilities;
 
 /* ============================================
-   HackIndie Design System — "Indie Night"
-   Tema: Indie-Púrpura (violet + pink accents)
-   Mobile-first · Light/Dark · WCAG AA
+   HackIndie Design System — "Cosmic Indigo"
+   Dark-first · Indigo + Teal accents
    ============================================ */
 
 @layer base {
   :root {
-    /* ── Light mode ── */
-    --background: 270 40% 99%;
-    --foreground: 262 40% 10%;
-    --card: 270 40% 98%;
-    --card-foreground: 262 40% 10%;
-    --popover: 270 40% 99%;
-    --popover-foreground: 262 40% 10%;
-    --primary: 262 83% 58%;
+    /* ── Light mode (matched to dark palette family) ── */
+    --background: 228 30% 98%;
+    --foreground: 228 30% 8%;
+    --card: 228 30% 100%;
+    --card-foreground: 228 30% 8%;
+    --popover: 228 30% 100%;
+    --popover-foreground: 228 30% 8%;
+    --primary: 232 100% 67%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 262 30% 94%;
-    --secondary-foreground: 262 50% 25%;
-    --muted: 262 25% 94%;
-    --muted-foreground: 262 10% 46%;
-    --accent: 290 70% 96%;
-    --accent-foreground: 262 50% 25%;
-    --destructive: 0 72% 51%;
+    --secondary: 228 20% 94%;
+    --secondary-foreground: 228 30% 20%;
+    --muted: 228 20% 95%;
+    --muted-foreground: 226 13% 45%;
+    --accent: 228 20% 94%;
+    --accent-foreground: 228 30% 20%;
+    --destructive: 0 91% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 262 20% 88%;
-    --input: 262 20% 88%;
-    --ring: 262 83% 58%;
+    --border: 228 20% 88%;
+    --input: 228 20% 88%;
+    --ring: 232 100% 67%;
     --radius: 0.625rem;
 
-    /* ── Charts ── */
-    --chart-1: 262 83% 58%;
-    --chart-2: 330 81% 60%;
-    --chart-3: 199 89% 48%;
+    --chart-1: 232 100% 67%;
+    --chart-2: 168 76% 54%;
+    --chart-3: 142 71% 45%;
     --chart-4: 43 96% 56%;
-    --chart-5: 142 71% 45%;
+    --chart-5: 0 91% 60%;
 
-    /* ── Sidebar ── */
-    --sidebar-background: 262 30% 97%;
-    --sidebar-foreground: 262 20% 30%;
-    --sidebar-primary: 262 83% 58%;
+    --sidebar-background: 228 25% 97%;
+    --sidebar-foreground: 228 20% 25%;
+    --sidebar-primary: 232 100% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 262 30% 93%;
-    --sidebar-accent-foreground: 262 40% 20%;
-    --sidebar-border: 262 20% 88%;
-    --sidebar-ring: 262 83% 58%;
+    --sidebar-accent: 228 20% 93%;
+    --sidebar-accent-foreground: 228 30% 15%;
+    --sidebar-border: 228 20% 88%;
+    --sidebar-ring: 232 100% 67%;
 
-    /* ── Brand accents ── */
-    --brand-accent: 330 81% 60%;
+    --brand-accent: 168 76% 54%;
     --brand-accent-foreground: 0 0% 100%;
 
-    /* ── Risk semantic colors ── */
     --risk-low: 142 71% 45%;
     --risk-low-foreground: 0 0% 100%;
-    --risk-medium: 43 96% 56%;
-    --risk-medium-foreground: 0 0% 10%;
-    --risk-high: 32 95% 55%;
+    --risk-medium: 43 96% 50%;
+    --risk-medium-foreground: 228 30% 10%;
+    --risk-high: 25 95% 53%;
     --risk-high-foreground: 0 0% 100%;
-    --risk-critical: 0 72% 51%;
+    --risk-critical: 0 84% 60%;
     --risk-critical-foreground: 0 0% 100%;
 
-    /* ── Agent colors ── */
-    --agent-orchestrator: 262 83% 58%;
-    --agent-inspector: 199 89% 48%;
-    --agent-operator: 32 95% 55%;
-    --agent-watcher: 142 71% 45%;
+    --agent-orchestrator: 232 100% 67%;
+    --agent-inspector: 142 71% 50%;
+    --agent-operator: 25 95% 55%;
+    --agent-watcher: 43 96% 56%;
   }
 
   .dark {
-    /* ── Dark mode ── */
-    --background: 265 40% 3.5%;
-    --foreground: 0 0% 98%;
-    --card: 265 30% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 265 30% 6%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 262 83% 62%;
+    /* ── Dark mode — Cosmic Indigo ── */
+    /* Base */
+    --background: 228 28% 4%;        /* #07080d */
+    --foreground: 220 50% 97%;       /* #f1f4fc */
+
+    /* Cards & surfaces */
+    --card: 232 28% 7%;              /* #0c0d16 */
+    --card-foreground: 220 50% 97%;
+    --popover: 230 28% 9%;           /* #11131e */
+    --popover-foreground: 220 50% 97%;
+
+    /* Primary — indigo */
+    --primary: 232 100% 74%;         /* #7c8cff */
     --primary-foreground: 0 0% 100%;
-    --secondary: 265 30% 12%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 265 25% 12%;
-    --muted-foreground: 262 10% 64%;
-    --accent: 265 30% 14%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 72% 51%;
+
+    /* Secondary surface */
+    --secondary: 228 25% 12%;        /* #171a27 */
+    --secondary-foreground: 220 50% 97%;
+
+    /* Muted */
+    --muted: 228 26% 11%;
+    --muted-foreground: 225 19% 65%; /* #a5adc6 */
+
+    /* Accent */
+    --accent: 228 26% 14%;           /* #1d2132 */
+    --accent-foreground: 220 50% 97%;
+
+    /* Destructive */
+    --destructive: 0 91% 71%;        /* #f87171 */
     --destructive-foreground: 0 0% 100%;
-    --border: 265 25% 14%;
-    --input: 265 25% 14%;
-    --ring: 262 83% 62%;
 
-    /* ── Charts ── */
-    --chart-1: 262 83% 62%;
-    --chart-2: 330 81% 65%;
-    --chart-3: 199 89% 55%;
+    /* Borders & inputs */
+    --border: 228 20% 16%;
+    --input: 228 26% 14%;
+    --ring: 232 100% 74%;
+
+    /* Charts */
+    --chart-1: 232 100% 74%;
+    --chart-2: 168 76% 64%;
+    --chart-3: 142 71% 50%;
     --chart-4: 43 96% 60%;
-    --chart-5: 142 71% 50%;
+    --chart-5: 0 91% 71%;
 
-    /* ── Sidebar ── */
-    --sidebar-background: 265 30% 5%;
-    --sidebar-foreground: 262 15% 80%;
-    --sidebar-primary: 262 83% 62%;
+    /* Sidebar */
+    --sidebar-background: 232 28% 7%;
+    --sidebar-foreground: 225 19% 71%;
+    --sidebar-primary: 232 100% 74%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 265 30% 12%;
-    --sidebar-accent-foreground: 0 0% 90%;
-    --sidebar-border: 265 25% 14%;
-    --sidebar-ring: 262 83% 62%;
+    --sidebar-accent: 228 25% 12%;
+    --sidebar-accent-foreground: 220 50% 97%;
+    --sidebar-border: 228 20% 16%;
+    --sidebar-ring: 232 100% 74%;
 
-    /* ── Brand accents ── */
-    --brand-accent: 330 81% 65%;
+    /* Brand */
+    --brand-accent: 168 76% 64%;     /* #5eead4 teal */
     --brand-accent-foreground: 0 0% 100%;
 
-    /* ── Risk semantic colors (dark-adjusted for readability) ── */
-    --risk-low: 142 71% 42%;
+    /* Risk severity */
+    --risk-low: 142 71% 50%;
     --risk-low-foreground: 0 0% 100%;
-    --risk-medium: 43 96% 50%;
-    --risk-medium-foreground: 0 0% 10%;
-    --risk-high: 32 95% 52%;
-    --risk-high-foreground: 0 0% 100%;
-    --risk-critical: 0 72% 48%;
+    --risk-medium: 25 95% 60%;       /* orange */
+    --risk-medium-foreground: 0 0% 100%;
+    --risk-high: 43 96% 56%;         /* amber */
+    --risk-high-foreground: 228 30% 10%;
+    --risk-critical: 0 91% 71%;      /* red */
     --risk-critical-foreground: 0 0% 100%;
 
-    /* ── Agent colors ── */
-    --agent-orchestrator: 262 83% 62%;
-    --agent-inspector: 199 89% 55%;
-    --agent-operator: 32 95% 52%;
-    --agent-watcher: 142 71% 42%;
+    /* Agents */
+    --agent-orchestrator: 232 100% 74%;
+    --agent-inspector: 142 71% 50%;
+    --agent-operator: 25 95% 60%;
+    --agent-watcher: 43 96% 56%;
   }
 }
 
@@ -141,35 +150,41 @@
   }
 }
 
-/* ── Scrollbar styling ── */
+/* ── Scrollbar ── */
 @layer components {
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.2) transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 5px;
+    width: 4px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground) / 0.25);
+    background-color: hsl(var(--muted-foreground) / 0.2);
     border-radius: 9999px;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
   }
 }
 
-/* ── Chat animations ── */
+/* ── Animations ── */
 @layer utilities {
   @keyframes typing {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
+    0%, 100% { opacity: 0.3; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-2px); }
   }
   .typing-dot {
-    animation: typing 1.4s infinite;
+    animation: typing 1.2s infinite;
   }
-  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.3s; }
 
   @keyframes cursor-blink {
     0%, 100% { opacity: 1; }
@@ -187,11 +202,24 @@
     animation: slide-in-up 0.3s ease-out;
   }
 
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .animate-pulse-soft {
+    animation: pulse-soft 1.8s ease-in-out infinite;
+  }
+
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 8px 0 currentColor; }
-    50% { box-shadow: 0 0 20px 2px currentColor; }
+    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.4); }
+    50% { box-shadow: 0 0 0 4px hsl(var(--primary) / 0); }
   }
   .animate-pulse-glow {
     animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  /* Brand gradient */
+  .bg-brand-gradient {
+    background: linear-gradient(140deg, hsl(var(--primary)) 0%, hsl(var(--brand-accent)) 100%);
   }
 }
