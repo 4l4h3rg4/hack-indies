@@ -8,6 +8,12 @@ RUN apt-get update && apt-get install -y curl gnupg && \
     apt-get install -y nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Pre-instalar paquetes MCP para que npx no los descargue en runtime
+# (evita TimeoutError en session.initialize() durante pruebas de conexión y uso del agente)
+RUN npm install -g \
+    @supabase/mcp-server-supabase \
+    @modelcontextprotocol/server-filesystem
+
 COPY pyproject.toml .
 # NOTE: Keep this list in sync with pyproject.toml dependencies
 RUN pip install --no-cache-dir \

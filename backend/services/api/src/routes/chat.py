@@ -98,6 +98,7 @@ async def run_agent_stream(
     message: str,
     approved_action_id: str = "",
 ) -> AsyncIterator[dict]:
+    from google.adk.errors.already_exists_error import AlreadyExistsError
     from google.adk.plugins.reflect_retry_tool_plugin import ReflectAndRetryToolPlugin
     from google.adk.runners import Runner
     from google.genai import types as genai_types
@@ -108,7 +109,8 @@ async def run_agent_stream(
             user_id=user_id,
             session_id=session_id,
         )
-    except ValueError:
+    except (ValueError, AlreadyExistsError):
+        # La sesión ya existe (mensajes 2+ de la misma conversación) — es correcto
         pass
 
     if approved_action_id:
