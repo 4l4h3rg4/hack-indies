@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -94,7 +95,11 @@ class ThreatWatcher:
             return []
 
         try:
-            resp = supabase_client.table("connections").select("id,user_id,service_type,service_name").execute()
+            resp = await asyncio.to_thread(
+                supabase_client.table("connections")
+                .select("id,user_id,service_type,service_name")
+                .execute
+            )
             user_services = resp.data or []
         except Exception as e:
             logger.warning(f"Watcher: could not fetch connections ({e})")
@@ -108,15 +113,17 @@ class ThreatWatcher:
 
         for alert in alerts:
             try:
-                supabase_client.table("alerts").insert({
-                    "user_id": alert["user_id"],
-                    "title": alert["title"],
-                    "description": alert["description"],
-                    "severity": alert["severity"],
-                    "source_agent": alert["source_agent"],
-                    "connection_id": alert.get("connection_id"),
-                    "status": "open",
-                }).execute()
+                await asyncio.to_thread(
+                    supabase_client.table("alerts").insert({
+                        "user_id": alert["user_id"],
+                        "title": alert["title"],
+                        "description": alert["description"],
+                        "severity": alert["severity"],
+                        "source_agent": alert["source_agent"],
+                        "connection_id": alert.get("connection_id"),
+                        "status": "open",
+                    }).execute
+                )
                 logger.info(f"Watcher: alert created for user {alert['user_id']}")
             except Exception as e:
                 logger.error(f"Watcher: failed to create alert: {e}")

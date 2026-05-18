@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import uuid
@@ -7,7 +8,7 @@ from fastapi import APIRouter, Request
 from google.adk.sessions import InMemorySessionService
 from sse_starlette.sse import EventSourceResponse
 
-from ..agents.inspector import build_inspector
+from ..agents.inspector import SERVICE_LABELS, build_inspector
 from ..agents.operator import build_operator
 from ..agents.orchestrator import build_orchestrator
 from ..crypto import decrypt_credentials
@@ -23,14 +24,40 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 _session_service = InMemorySessionService()
 
+# Cache de agentes por session_id.
+# Estructura: { session_id: { "orchestrator": LlmAgent, "conn_hash": str,
+#                              "service_inspector_toolsets": dict[str, list],
+#                              "operator_toolsets": list } }
+_agent_cache: dict[str, dict] = {}
+
 
 def emit_log(session_id: str, agent_name: str, icon: str, message: str):
     return store.append_log(session_id, agent_name, icon, message)
 
 
-async def _build_session_agents(user_id: str, session_id: str):
-    emit_log(session_id, "Orquestador", "🤖", "Inicializando agentes de seguridad...")
+def _make_conn_hash(connections: list) -> str:
+    """Hash de los IDs de conexión ordenados — detecta cambios en el stack del usuario."""
+    ids = sorted(str(c.get("id", "")) for c in connections)
+    return hashlib.md5("|".join(ids).encode()).hexdigest()  # noqa: S324 (no crypto use)
 
+
+async def _close_toolsets(toolsets: list) -> None:
+    """Cierra subprocesos MCP de forma silenciosa."""
+    for ts in toolsets:
+        try:
+            if hasattr(ts, "close"):
+                await ts.close()
+        except Exception:
+            pass
+
+
+async def _build_session_agents(user_id: str, session_id: str):
+    """Construye (o reutiliza desde caché) el árbol de agentes para la sesión.
+
+    Se reconstruye solo si:
+    - La sesión es nueva (no está en caché).
+    - El conjunto de conexiones del usuario cambió desde la última construcción.
+    """
     user_conns_str = get_user_connections(user_id)
     try:
         conns_data = json.loads(user_conns_str)
@@ -38,7 +65,29 @@ async def _build_session_agents(user_id: str, session_id: str):
     except Exception:
         connections = []
 
-    mcp_toolsets = []
+    conn_hash = _make_conn_hash(connections)
+
+    # ── Hit de caché: misma sesión, mismas conexiones ──────────────────────────
+    cached = _agent_cache.get(session_id)
+    if cached and cached["conn_hash"] == conn_hash:
+        emit_log(session_id, "Orquestador", "🤖", "Agentes listos (caché activo).")
+        return cached["orchestrator"]
+
+    # ── Miss de caché: construir agentes desde cero ────────────────────────────
+    emit_log(session_id, "Orquestador", "🤖", "Inicializando agentes de seguridad...")
+
+    # Cerrar toolsets anteriores si las conexiones cambiaron
+    if cached:
+        old_insp: dict = cached.get("service_inspector_toolsets", {})
+        for ts_list in old_insp.values():
+            await _close_toolsets(ts_list)
+        await _close_toolsets(cached.get("operator_toolsets", []))
+
+    # Agrupar toolsets por service_type → un Inspector por servicio
+    # service_inspector_toolsets: { "shopify": [ts1, ts2], "github": [ts3], ... }
+    service_inspector_toolsets: dict[str, list] = {}
+    operator_toolsets: list = []
+
     for conn in connections:
         service_type = conn.get("service_type", "")
         conn_config = conn.get("connection_config", {})
@@ -50,25 +99,48 @@ async def _build_session_agents(user_id: str, session_id: str):
             continue
 
         plaintext = decrypt_credentials(encrypted, nonce)
-        if plaintext:
-            config = json.loads(plaintext.decode("utf-8"))
-        else:
-            emit_log(...)
+        if not plaintext:
+            emit_log(
+                session_id, "Inspector MCP", "⚠️",
+                f"No se pudieron descifrar credenciales para "
+                f"{conn.get('service_name', service_type)}. Omitiendo conexión.",
+            )
+            continue
 
-        toolset = build_mcp_toolset(service_type, config)
-        if toolset:
-            mcp_toolsets.append(toolset)
+        config = json.loads(plaintext.decode("utf-8"))
+        service_label = conn.get("service_name", service_type)
+
+        insp_ts = build_mcp_toolset(service_type, config)
+        oper_ts = build_mcp_toolset(service_type, config)
+
+        if insp_ts:
+            if service_type not in service_inspector_toolsets:
+                service_inspector_toolsets[service_type] = []
+            service_inspector_toolsets[service_type].append(insp_ts)
+
+        if oper_ts:
+            operator_toolsets.append(oper_ts)
+
+        if insp_ts or oper_ts:
             emit_log(
                 session_id,
                 "Inspector MCP",
                 "🔍",
-                f"Conector MCP listo para {conn.get('service_name', service_type)}",
+                f"Conector MCP listo para {service_label}",
             )
 
-    inspector = build_inspector(mcp_toolsets[:] if mcp_toolsets else None)
-    operator = build_operator(mcp_toolsets[:] if mcp_toolsets else None)
-    orchestrator = build_orchestrator(inspector, operator)
+    # Construir UN Inspector por service_type, cada uno solo con sus propios tools
+    inspectors = []
+    for service_type, ts_list in service_inspector_toolsets.items():
+        service_name = SERVICE_LABELS.get(service_type, service_type.title())
+        inspector = build_inspector(ts_list, user_id=user_id, service_name=service_name)
+        inspectors.append(inspector)
+        emit_log(session_id, f"Inspector_{service_name}", "🔍", f"Inspector de {service_name} listo.")
 
+    operator = build_operator(operator_toolsets if operator_toolsets else None)
+    orchestrator = build_orchestrator(inspectors if inspectors else None, operator, user_id=user_id)
+
+    # Recuperar notas de contexto solo en la primera construcción (para el log UI)
     emit_log(session_id, "Orquestador", "🤖", "Consultando apuntes mentales del usuario...")
     notes_json = await search_mental_notes(
         "historial de seguridad y configuracion del usuario", user_id, limit=5
@@ -88,6 +160,14 @@ async def _build_session_agents(user_id: str, session_id: str):
 
     emit_log(session_id, "Orquestador", "🤖", "Agentes listos. Esperando tu consulta.")
 
+    # Guardar en caché
+    _agent_cache[session_id] = {
+        "orchestrator": orchestrator,
+        "conn_hash": conn_hash,
+        "service_inspector_toolsets": service_inspector_toolsets,
+        "operator_toolsets": operator_toolsets,
+    }
+
     return orchestrator
 
 
@@ -98,7 +178,7 @@ async def run_agent_stream(
     message: str,
     approved_action_id: str = "",
 ) -> AsyncIterator[dict]:
-    from google.adk.plugins.reflect_retry_tool_plugin import ReflectAndRetryToolPlugin
+    from google.adk.errors.already_exists_error import AlreadyExistsError
     from google.adk.runners import Runner
     from google.genai import types as genai_types
 
@@ -108,7 +188,8 @@ async def run_agent_stream(
             user_id=user_id,
             session_id=session_id,
         )
-    except ValueError:
+    except (ValueError, AlreadyExistsError):
+        # La sesión ya existe (mensajes 2+ de la misma conversación) — es correcto
         pass
 
     if approved_action_id:
@@ -121,14 +202,13 @@ async def run_agent_stream(
             session.state["approved_action_id"] = approved_action_id
             emit_log(
                 session_id, "Operador", "✅",
-                f"Acción aprobada por el usuario (id: {approved_action_id[:8]}...)"
+                f"Acción aprobada por el usuario (id: {approved_action_id[:8]}...)",
             )
 
     runner = Runner(
         app_name="hackindies",
         agent=orchestrator,
         session_service=_session_service,
-        plugins=[ReflectAndRetryToolPlugin(max_retries=2)],
     )
 
     content = genai_types.Content(
@@ -176,7 +256,7 @@ async def run_agent_stream(
                     target = getattr(action.agent_transfer, "agent_name", "desconocido")
                     emit_log(
                         session_id, target, "🔄",
-                        f"Transfiriendo control a {target}..."
+                        f"Transfiriendo control a {target}...",
                     )
                     yield {
                         "event": "agent_log",
@@ -191,7 +271,7 @@ async def run_agent_stream(
                     tool_name = getattr(action.tool_use, "name", "desconocido")
                     emit_log(
                         session_id, "Herramienta", "🔧",
-                        f"Ejecutando herramienta: {tool_name}"
+                        f"Ejecutando herramienta: {tool_name}",
                     )
                     yield {
                         "event": "agent_log",
@@ -201,6 +281,54 @@ async def run_agent_stream(
                             "data": {"tool": tool_name},
                         }),
                     }
+
+                    if tool_name == "delete_connection":
+                        tool_args = getattr(action.tool_use, "args", {})
+                        if isinstance(tool_args, dict):
+                            conn_id = tool_args.get("connection_id", "")
+                        else:
+                            try:
+                                conn_id = dict(tool_args).get("connection_id", "")
+                            except Exception:
+                                conn_id = ""
+
+                        if conn_id:
+                            label = "Conexión seleccionada"
+                            supabase = get_supabase_client()
+                            if supabase:
+                                try:
+                                    resp = (
+                                        supabase.table("connections")
+                                        .select("service_name")
+                                        .eq("id", conn_id)
+                                        .execute()
+                                    )
+                                    if resp.data:
+                                        label = resp.data[0].get("service_name", label)
+                                except Exception:
+                                    pass
+
+                            yield {
+                                "event": "graph_action",
+                                "data": json.dumps({
+                                    "event_type": "graph_action_proposal",
+                                    "action": "delete_connection",
+                                    "connection_id": conn_id,
+                                    "label": label,
+                                    "message": "¿Eliminamos esta conexión del grafo de infraestructura?",
+                                }),
+                            }
+
+    if not full_response.strip():
+        fallback = (
+            "Procesé tu consulta internamente. "
+            "¿Hay algo más en lo que pueda ayudarte con tu ciberseguridad?"
+        )
+        yield {
+            "event": "token",
+            "data": json.dumps({"event_type": "text", "content": fallback}),
+        }
+        full_response = fallback
 
     yield {
         "event": "done",
@@ -236,8 +364,11 @@ async def chat(request: Request, payload: ChatRequest):
         session_info = store.get_session_info(session_id)
         if session_info:
             full_response = session_info.get("full_response", "")
-            if full_response:
-                emit_log(session_id, "Orquestador", "🤖", "Extrayendo aprendizajes de la conversación...")
+            if full_response and not full_response.startswith("Error:"):
+                emit_log(
+                    session_id, "Orquestador", "🤖",
+                    "Extrayendo aprendizajes de la conversación...",
+                )
                 facts = await extract_facts(
                     f"Usuario: {payload.message}\n\nAsistente: {full_response}"
                 )
@@ -245,7 +376,7 @@ async def chat(request: Request, payload: ChatRequest):
                     stored = await store_mental_notes_batch(user_id, facts, session_id)
                     emit_log(
                         session_id, "Memoria", "🧠",
-                        f"Se guardaron {stored} apuntes mentales para futuras consultas"
+                        f"Se guardaron {stored} apuntes mentales para futuras consultas",
                     )
 
     return EventSourceResponse(event_generator())
@@ -271,6 +402,14 @@ async def list_sessions(user_id: str):
 
 @router.delete("/sessions/{session_id}")
 async def close_session(session_id: str):
+    # Limpiar caché y cerrar subprocesos MCP de la sesión
+    cached = _agent_cache.pop(session_id, None)
+    if cached:
+        old_insp: dict = cached.get("service_inspector_toolsets", {})
+        for ts_list in old_insp.values():
+            await _close_toolsets(ts_list)
+        await _close_toolsets(cached.get("operator_toolsets", []))
+
     supabase = get_supabase_client()
     if supabase:
         try:

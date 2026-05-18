@@ -21,6 +21,9 @@ out/
 # OpenCode
 opencode.json
 
+# Claude Code (sessions, worktrees, settings)
+.claude/
+
 # Environment
 .env
 .env.local
@@ -35,3 +38,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Build artifacts / generated docs
+hackindie-presentation.pptx
+generate-ppt.js
+
+# Tasks output (Claude background tasks)
+tasks/

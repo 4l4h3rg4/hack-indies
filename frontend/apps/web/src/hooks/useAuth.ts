@@ -43,6 +43,7 @@ export function useAuth() {
     if (!HAS_SUPABASE) return;
     const supabase = createClient();
     await supabase.auth.signOut();
+    window.location.href = "/login";
   }, []);
 
   const getToken = useCallback(async (): Promise<string | null> => {

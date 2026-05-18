@@ -20,7 +20,7 @@ Cada hecho debe ser una frase simple en español que capture información import
 NO incluyas conversación trivial, saludos o información redundante.
 
 Devuelve un array JSON con este formato exacto:
-{"facts": ["hecho1", "hecho2", "hecho3"]}
+{{"facts": ["hecho1", "hecho2", "hecho3"]}}
 
 Conversación:
 {conversation}
@@ -78,17 +78,46 @@ async def extract_facts(conversation: str) -> list[str]:
             )
             text = response.text
 
-        text = text.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0].strip()
-
-        data = json.loads(text)
-        facts = data.get("facts", [])
+        facts = _parse_facts(text)
         logger.info(f"Extracted {len(facts)} mental notes")
         return facts
 
     except Exception as e:
         logger.error(f"Fact extraction failed: {e}")
         return []
+
+
+def _parse_facts(text: str) -> list[str]:
+    """Parse facts from LLM response, handling various JSON formats."""
+    text = text.strip()
+
+    if not text:
+        logger.warning("Empty response from fact extraction LLM")
+        return []
+
+    if "```json" in text:
+        text = text.split("```json")[1].split("```")[0].strip()
+    elif "```" in text:
+        text = text.split("```")[1].split("```")[0].strip()
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        logger.warning(f"JSON decode failed: {e}. Raw text: {text[:200]}")
+        return []
+
+    if isinstance(data, dict):
+        facts = data.get("facts") or data.get("hechos") or []
+        if isinstance(facts, list):
+            return [str(f) for f in facts if f]
+        logger.warning(f"Unexpected 'facts' type: {type(facts)}. Raw: {text[:200]}")
+        return []
+
+    if isinstance(data, list):
+        return [str(f) for f in data if f]
+
+    if isinstance(data, str):
+        return [data]
+
+    logger.warning(f"Unexpected JSON type: {type(data)}. Raw: {text[:200]}")
+    return []

@@ -3,12 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Shield, Mail, Lock, Building, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+import {
+  Shield,
+  Mail,
+  Lock,
+  Building,
+  User,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Loader2,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AppHeader } from "@/components/layout/AppHeader";
 
@@ -58,108 +63,173 @@ export default function SignupPage() {
     }
   };
 
+  type FieldProps = {
+    icon: typeof Mail;
+    type?: string;
+    placeholder: string;
+    value: string;
+    onChange: (v: string) => void;
+    label: string;
+    required?: boolean;
+  };
+
+  const Field = ({ icon: Icon, type = "text", placeholder, value, onChange, label, required }: FieldProps) => (
+    <label className="block">
+      <span className="text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5 block">
+        {label}
+      </span>
+      <div className="relative">
+        <Icon
+          className="absolute left-3 top-1/2 -translate-y-1/2 size-[14px] text-muted-foreground/70"
+          strokeWidth={1.8}
+        />
+        <input
+          type={type}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          disabled={loading}
+          className="w-full h-10 pl-9 pr-3 rounded-md bg-secondary/40 border border-border focus:border-primary/40 focus:bg-secondary outline-none text-[13px] text-foreground placeholder:text-muted-foreground/60 transition-colors"
+        />
+      </div>
+    </label>
+  );
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <AppHeader />
-      <main className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto flex items-center justify-center size-12 rounded-xl bg-primary/10 mb-3">
-              <Shield className="size-6 text-primary" />
-            </div>
-            <CardTitle className="text-xl">Crear cuenta</CardTitle>
-            <CardDescription>
-              Tu CISO Virtual gratuito para PyMEs
-            </CardDescription>
-          </CardHeader>
 
-          <CardContent>
+      <main className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
+        <div
+          className="absolute inset-0 pointer-events-none opacity-60"
+          style={{
+            background:
+              "radial-gradient(ellipse at top, hsl(var(--primary) / 0.08), transparent 60%), radial-gradient(ellipse at bottom right, hsl(var(--brand-accent) / 0.05), transparent 60%)",
+          }}
+        />
+
+        <div className="relative w-full max-w-[400px]">
+          <div className="rounded-2xl border border-border bg-card shadow-[0_24px_60px_-12px_rgba(0,0,0,0.5)] p-7">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="size-12 rounded-xl bg-brand-gradient flex items-center justify-center mb-3.5 shadow-[0_8px_24px_-4px_hsl(var(--primary)/0.5)]">
+                <Shield className="size-5 text-white" strokeWidth={2.2} />
+              </div>
+              <h1 className="text-[19px] font-bold tracking-tight">
+                Crear cuenta
+              </h1>
+              <p className="text-[12.5px] text-muted-foreground mt-1">
+                Tu CISO Virtual gratuito para PyMEs
+              </p>
+            </div>
+
             {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+                {error}
+              </div>
             )}
 
             <form onSubmit={handleSignup} className="flex flex-col gap-3">
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Nombre completo"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="pl-10"
-                  required
-                  disabled={loading}
-                />
-              </div>
+              <Field
+                icon={User}
+                placeholder="Nombre completo"
+                value={fullName}
+                onChange={setFullName}
+                label="Nombre"
+                required
+              />
 
-              <div className="relative">
-                <Building className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Nombre de tu empresa"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  className="pl-10"
-                  disabled={loading}
-                />
-              </div>
+              <Field
+                icon={Building}
+                placeholder="Acme Inc."
+                value={companyName}
+                onChange={setCompanyName}
+                label="Empresa"
+              />
 
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  type="email"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
-                  required
-                  disabled={loading}
-                />
-              </div>
+              <Field
+                icon={Mail}
+                type="email"
+                placeholder="tu@email.com"
+                value={email}
+                onChange={setEmail}
+                label="Email"
+                required
+              />
 
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Contraseña (mín. 8 caracteres)"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10"
-                  required
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
-              </div>
+              {/* Password (custom because of eye toggle) */}
+              <label className="block">
+                <span className="text-[10.5px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5 block">
+                  Contraseña
+                </span>
+                <div className="relative">
+                  <Lock
+                    className="absolute left-3 top-1/2 -translate-y-1/2 size-[14px] text-muted-foreground/70"
+                    strokeWidth={1.8}
+                  />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Mínimo 8 caracteres"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                    className="w-full h-10 pl-9 pr-9 rounded-md bg-secondary/40 border border-border focus:border-primary/40 focus:bg-secondary outline-none text-[13px] text-foreground placeholder:text-muted-foreground/60 transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="size-[14px]" strokeWidth={1.8} />
+                    ) : (
+                      <Eye className="size-[14px]" strokeWidth={1.8} />
+                    )}
+                  </button>
+                </div>
+              </label>
 
-              <Button type="submit" disabled={loading} className="gap-2 mt-1">
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-2 h-10 rounded-md bg-primary text-white font-semibold text-[13px] flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 shadow-[0_4px_12px_-2px_hsl(var(--primary)/0.4)]"
+              >
                 {loading ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <ArrowRight className="size-4" />
+                  <>
+                    Crear cuenta
+                    <ArrowRight className="size-[14px]" strokeWidth={2} />
+                  </>
                 )}
-                Crear cuenta
-              </Button>
+              </button>
             </form>
 
-            <Separator className="my-4" />
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                o
+              </span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
 
-            <p className="text-center text-sm text-muted-foreground">
-              ¿Ya tienes cuenta?{" "}
-              <Link href="/login" className="text-primary hover:underline font-medium">
+            <p className="text-center text-[12.5px] text-muted-foreground">
+              ¿Ya tenés cuenta?{" "}
+              <Link
+                href="/login"
+                className="text-primary hover:underline font-semibold"
+              >
                 Iniciar sesión
               </Link>
             </p>
-          </CardContent>
-        </Card>
+          </div>
+
+          <p className="text-center text-[10.5px] text-muted-foreground/60 mt-4">
+            Al crear una cuenta aceptás nuestros términos
+          </p>
+        </div>
       </main>
     </div>
   );

@@ -41,6 +41,7 @@ export interface AlertData {
   source_agent: string;
   connection_id: string | null;
   status: string;
+  resolution_notes: string | null;
   created_at: string;
 }
 
@@ -112,6 +113,18 @@ export async function resolveAlert(token: string | null, alertId: string) {
     headers: authHeaders(token),
   });
   return res.json();
+}
+
+export async function reauditAlert(
+  token: string | null,
+  alertId: string
+): Promise<ReadableStream<Uint8Array>> {
+  const res = await fetch(`${API_URL}/api/alerts/${alertId}/reaudit`, {
+    method: "POST",
+    headers: authHeaders(token),
+  });
+  if (!res.ok || !res.body) throw new Error("Failed to start reaudit");
+  return res.body;
 }
 
 export async function dismissAlert(token: string | null, alertId: string) {
