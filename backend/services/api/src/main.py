@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import httpx
@@ -41,16 +42,23 @@ async def lifespan(app: FastAPI):
     logger.info(f"LLM Provider: {provider} | Model: {settings.llm_model}")
     logger.info(f"Supabase URL: {settings.supabase_url or 'NOT CONFIGURED'}")
 
-    watcher_task = asyncio.create_task(_watcher_loop())
-    logger.info("Watcher: background monitoring activated")
+    # ThreatWatcher requires a persistent event loop — not available on Vercel serverless.
+    is_serverless = bool(os.getenv("VERCEL"))
+    watcher_task = None
+    if not is_serverless:
+        watcher_task = asyncio.create_task(_watcher_loop())
+        logger.info("Watcher: background monitoring activated")
+    else:
+        logger.info("Watcher: disabled (serverless environment)")
 
     yield
 
-    watcher_task.cancel()
-    try:
-        await watcher_task
-    except asyncio.CancelledError:
-        pass
+    if watcher_task is not None:
+        watcher_task.cancel()
+        try:
+            await watcher_task
+        except asyncio.CancelledError:
+            pass
     logger.info("HackIndie CISO Virtual - Shutting down")
 
 

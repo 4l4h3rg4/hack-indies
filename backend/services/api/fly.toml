@@ -1,0 +1,40 @@
+# fly.toml — HackIndie Backend API
+# Contexto de deploy: backend/services/api/
+#
+# Primera vez:
+#   fly launch --no-deploy   (registra la app y usa este fly.toml como base)
+#   fly secrets set ...      (variables de entorno sensibles)
+#   fly deploy
+#
+# Deploys posteriores:
+#   fly deploy
+
+app = "hackindies-api"    # <-- cambiá esto por el nombre que quieras (debe ser único en fly.io)
+primary_region = "gru"    # São Paulo — misma región que Supabase (sa-east-1)
+
+[build]
+  # Usa el Dockerfile de este directorio automáticamente
+
+[env]
+  APP_ENV = "production"
+  APP_DEBUG = "false"
+  PORT = "8000"
+  # CORS_ORIGINS se setea como secret (incluye la URL de Vercel del frontend):
+  #   fly secrets set CORS_ORIGINS="https://tu-frontend.vercel.app"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1    # mantener 1 instancia caliente para el demo
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
