@@ -10,29 +10,24 @@ from mcp import StdioServerParameters
 
 logger = logging.getLogger(__name__)
 
+
+# Todos los servidores stdio están pre-instalados globalmente en el contenedor.
+# NO usar "npx -y" para los pre-instalados — evita descargar versiones distintas.
 MCP_SERVER_CONFIGS = {
     "supabase": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "@supabase/mcp-server-supabase"],
+        "args": ["@supabase/mcp-server-supabase"],
         "env_template": {
             "SUPABASE_ACCESS_TOKEN": "{access_token}",
             "SUPABASE_PROJECT_REF": "{project_ref}",
         },
     },
-    "shopify": {
-        "type": "stdio",
-        "command": "npx",
-        "args": ["-y", "@shopify/mcp-server-shopify"],
-        "env_template": {
-            "SHOPIFY_ACCESS_TOKEN": "{access_token}",
-            "SHOPIFY_STORE_URL": "{store_url}",
-        },
-    },
+    # Pinneado a 0.6.2 — la versión 2025.4.8 está deprecada y rota (BrokenResourceError)
     "github": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "args": ["@modelcontextprotocol/server-github@0.6.2"],
         "env_template": {
             "GITHUB_PERSONAL_ACCESS_TOKEN": "{personal_access_token}",
         },
@@ -40,7 +35,7 @@ MCP_SERVER_CONFIGS = {
     "postgresql": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-postgres"],
+        "args": ["@modelcontextprotocol/server-postgres"],
         "env_template": {
             "DATABASE_URL": "{connection_string}",
         },
@@ -48,17 +43,25 @@ MCP_SERVER_CONFIGS = {
     "sentry": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-sentry"],
+        "args": ["@sentry/mcp-server", "--transport", "stdio"],
         "env_template": {
             "SENTRY_AUTH_TOKEN": "{auth_token}",
-            "SENTRY_ORGANIZATION_SLUG": "{organization_slug}",
         },
     },
     "filesystem": {
         "type": "stdio",
         "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+        "args": ["@modelcontextprotocol/server-filesystem", "/tmp"],
         "env_template": {},
+    },
+    # Servidor MCP propio para Vercel — corre localmente, tokens no salen del contenedor
+    "vercel": {
+        "type": "stdio",
+        "command": "node",
+        "args": ["/app/mcp-servers/vercel-mcp.mjs"],
+        "env_template": {
+            "VERCEL_TOKEN": "{access_token}",
+        },
     },
     "generic_mcp": {
         "type": "streamable_http",
@@ -82,7 +85,10 @@ def build_mcp_toolset(
         if server_config["type"] == "stdio":
             env = {}
             for key, template in server_config.get("env_template", {}).items():
-                env[key] = template.format(**config)
+                try:
+                    env[key] = template.format(**config)
+                except KeyError:
+                    pass  # credencial opcional no provista
 
             connection_params = StdioConnectionParams(
                 server_params=StdioServerParameters(
@@ -111,7 +117,7 @@ def build_mcp_toolset(
         )
 
     except Exception as e:
-        logger.error(f"Failed to build MCP toolset: {e}")
+        logger.error(f"Failed to build MCP toolset for {service_type}: {e}")
         return None
 
 
@@ -124,5 +130,5 @@ async def list_mcp_tools(service_type: str, config: dict) -> list[str]:
         tools = await toolset.get_tools()
         return [tool.name for tool in tools]
     except Exception as e:
-        logger.error(f"Failed to list MCP tools: {e}")
+        logger.error(f"Failed to list MCP tools for {service_type}: {e}")
         return []

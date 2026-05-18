@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Database,
-  ShoppingCart,
   Cloud,
   Server,
   Check,
@@ -73,28 +72,6 @@ const SERVICE_DEFS: ServiceDef[] = [
         hint: "ID único de tu proyecto. Lo ves en la URL del dashboard: supabase.com/dashboard/project/[ref]",
         helpUrl: "https://supabase.com/dashboard",
         helpLabel: "Ver en Settings → General → Reference ID",
-      },
-    ],
-  },
-  {
-    id: "shopify",
-    label: "Shopify",
-    icon: ShoppingCart,
-    description: "Tienda online y e-commerce",
-    fields: [
-      {
-        key: "access_token",
-        label: "Access Token",
-        placeholder: "shpat_...",
-        hint: "Token de una Custom App en tu tienda. Requiere permisos de lectura en productos y pedidos.",
-        helpUrl: "https://admin.shopify.com/settings/apps/development",
-        helpLabel: "Crear en Settings → Apps → Develop apps",
-      },
-      {
-        key: "store_url",
-        label: "Store URL",
-        placeholder: "https://my-store.myshopify.com",
-        hint: "URL completa de tu tienda en formato .myshopify.com",
       },
     ],
   },
@@ -615,7 +592,7 @@ export function ConnectionDialog({
           </div>
         )}
 
-        <DialogFooter showCloseButton>
+        <DialogFooter>
           <Button
             variant="outline"
             size="sm"

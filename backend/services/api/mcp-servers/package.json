@@ -1,0 +1,9 @@
+{
+  "name": "hackindies-mcp-servers",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Custom MCP servers for HackIndie CISO Virtual",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.0"
+  }
+}

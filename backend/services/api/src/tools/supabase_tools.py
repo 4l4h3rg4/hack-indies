@@ -158,6 +158,32 @@ def create_connection(
         return json.dumps({"success": False, "message": str(e)[:200]})
 
 
+def update_alert_status(
+    alert_id: str,
+    status: str,
+    resolution_notes: str = "",
+) -> str:
+    """Update the status of a security alert. Used by Inspector during re-audit.
+
+    Args:
+        alert_id: ID of the alert to update
+        status: New status — 'open', 'in_progress', 'resolved', or 'dismissed'
+        resolution_notes: Optional explanation of what was done / found
+    """
+    supabase = get_supabase_client()
+    if not supabase:
+        return json.dumps({"success": False, "message": "Supabase not configured"})
+    try:
+        update_data: dict = {"status": status}
+        if resolution_notes:
+            update_data["resolution_notes"] = resolution_notes
+        supabase.table("alerts").update(update_data).eq("id", alert_id).execute()
+        return json.dumps({"success": True, "new_status": status}, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Failed to update alert status: {e}")
+        return json.dumps({"success": False, "message": str(e)})
+
+
 def store_alert(
     user_id: str,
     title: str,

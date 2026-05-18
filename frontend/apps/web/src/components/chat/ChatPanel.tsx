@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 import { Shield } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
@@ -11,6 +11,8 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   isLoading: boolean;
   onSend: (text: string) => void;
+  input: string;
+  onInputChange: (value: string) => void;
 }
 
 const DEFAULT_SUGGESTIONS = [
@@ -25,21 +27,19 @@ const ACTIVE_CHIPS = [
   "¿Cómo parcheo esto?",
 ];
 
-export function ChatPanel({ messages, isLoading, onSend }: ChatPanelProps) {
-  const [input, setInput] = useState("");
+export function ChatPanel({ messages, isLoading, onSend, input, onInputChange }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    // Scroll only the messages container, not the page
     el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
     onSend(input.trim());
-    setInput("");
+    onInputChange("");
   };
 
   const hasMessages = messages.length > 0;
@@ -119,7 +119,7 @@ export function ChatPanel({ messages, isLoading, onSend }: ChatPanelProps) {
       <div className="flex-shrink-0">
         <ChatInput
           value={input}
-          onChange={setInput}
+          onChange={onInputChange}
           onSend={handleSend}
           isLoading={isLoading}
         />

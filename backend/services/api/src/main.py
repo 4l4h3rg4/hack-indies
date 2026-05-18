@@ -95,11 +95,10 @@ async def _validate_token(token: str) -> str | None:
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("id")
-            else:
-                logger.warning(f"Token validation failed: {resp.status_code}")
-                return None
-    except Exception as e:
-        logger.error(f"Token validation error: {e}")
+            logger.warning("Token validation failed: %s", resp.status_code)
+            return None
+    except Exception as exc:
+        logger.error("Token validation error: %s", exc)
         return None
 
 

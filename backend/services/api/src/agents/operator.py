@@ -2,8 +2,9 @@ import logging
 import uuid
 
 from google.adk.agents import LlmAgent
-from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools import FunctionTool
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.tool_context import ToolContext
 
 from .model_factory import build_model
 
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def _request_approval(
-    action_name: str, description: str, callback_context: CallbackContext
+    action_name: str, description: str, tool_context: ToolContext
 ) -> dict:
     """Solicita autorización del usuario antes de ejecutar una acción de escritura.
 
@@ -24,13 +25,13 @@ def _request_approval(
         description: Descripción clara de qué se hará y por qué
     """
     action_id = str(uuid.uuid4())
-    pending = callback_context.state.get("pending_approval", {})
+    pending = tool_context.state.get("pending_approval", {})
     pending[action_id] = {
         "action_name": action_name,
         "description": description,
         "approved": False,
     }
-    callback_context.state["pending_approval"] = pending
+    tool_context.state["pending_approval"] = pending
 
     return {
         "status": "pending_approval",
@@ -45,34 +46,33 @@ def _request_approval(
 
 
 async def _log_operator_tool(
-    callback_context: CallbackContext, tool_name: str, result: dict
+    tool: BaseTool, args: dict, tool_context: ToolContext, tool_response: dict
 ) -> dict | None:
-    has_error = isinstance(result, dict) and result.get("error")
+    has_error = isinstance(tool_response, dict) and tool_response.get("error")
     status = "blocked" if has_error else "success"
-    logger.info("Operador tool '%s': %s", tool_name, status)
+    logger.info("Operador tool '%s': %s", tool.name, status)
     return None
 
 
 async def _approval_gate(
-    callback_context: CallbackContext, tool_name: str, args: dict
+    tool: BaseTool, args: dict, tool_context: ToolContext
 ) -> dict | None:
     """before_tool_callback: bloquea cualquier tool de escritura sin aprobación previa."""
+    tool_name = tool.name
     if tool_name == "request_approval":
         return None
 
-    approved_action_id = callback_context.state.get("approved_action_id", "")
-    pending = callback_context.state.get("pending_approval", {})
+    approved_action_id = tool_context.state.get("approved_action_id", "")
+    pending = tool_context.state.get("pending_approval", {})
 
     if approved_action_id and approved_action_id in pending:
+        # Aprobar y consumir el action_id específico — no queda autorización residual
         pending[approved_action_id]["approved"] = True
-        callback_context.state["pending_approval"] = pending
-        callback_context.state["approved_action_id"] = ""
+        tool_context.state["pending_approval"] = pending
+        tool_context.state["approved_action_id"] = ""  # consumir
         return None
 
-    for action_id, action_info in pending.items():
-        if action_info.get("approved"):
-            return None
-
+    # No hay aprobación vigente: bloquear
     return {
         "status": "blocked",
         "error": (
@@ -84,7 +84,7 @@ async def _approval_gate(
 
 
 def build_operator(mcp_toolsets: list = None):
-    tools = mcp_toolsets or []
+    tools = list(mcp_toolsets) if mcp_toolsets else []
     tools.append(FunctionTool(_request_approval))
 
     operator = LlmAgent(

@@ -45,6 +45,9 @@ export function useApi() {
       resolveAlert: (alertId: string) =>
         getToken().then((t) => rawApi.resolveAlert(t, alertId)),
 
+      reauditAlert: (alertId: string) =>
+        getToken().then((t) => rawApi.reauditAlert(t, alertId)),
+
       dismissAlert: (alertId: string) =>
         getToken().then((t) => rawApi.dismissAlert(t, alertId)),
 

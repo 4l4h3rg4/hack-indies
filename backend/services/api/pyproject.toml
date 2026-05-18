@@ -25,8 +25,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ruff>=0.6.0",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
 ]
 
 [build-system]
@@ -41,5 +39,4 @@ target-version = "py311"
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
+

@@ -94,10 +94,6 @@ async def store_mental_notes_batch(
         return 0
 
     try:
-        embeddings = await generate_single_embedding(" ".join(facts))
-        if not embeddings:
-            return 0
-
         count = 0
         for fact in facts:
             fact_embedding = await generate_single_embedding(fact)

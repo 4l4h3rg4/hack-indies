@@ -92,12 +92,15 @@ def _content_to_openai_message(part: genai_types.Content) -> dict:
             content_texts.append(p.text)
         elif hasattr(p, "function_call") and p.function_call is not None:
             fc = p.function_call
+            # OpenAI/Mistral requiere arguments como JSON string, no dict
+            raw_args = fc.args or {}
+            arguments = json.dumps(raw_args) if isinstance(raw_args, dict) else (raw_args or "{}")
             tool_calls.append({
                 "id": getattr(fc, "id", "") or "",
                 "type": "function",
                 "function": {
                     "name": fc.name or "",
-                    "arguments": fc.args or "{}",
+                    "arguments": arguments,
                 },
             })
         elif hasattr(p, "function_response") and p.function_response is not None:
@@ -151,7 +154,8 @@ class OpenRouterModel(BaseLlm):
             "model": self.model,
             "messages": messages,
             "temperature": getattr(cfg, "temperature", None) or 0.7,
-            "max_tokens": getattr(cfg, "max_output_tokens", None) or 4096,
+            "max_tokens": getattr(cfg, "max_output_tokens", None) or 16384,
+            "parallel_tool_calls": True,
         }
 
         # Extract tool/function declarations from ADK config

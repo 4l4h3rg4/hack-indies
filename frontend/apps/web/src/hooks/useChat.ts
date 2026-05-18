@@ -22,14 +22,17 @@ export interface GraphActionProposal {
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const isLoadingRef = useRef(false);
   const [pendingGraphAction, setPendingGraphAction] = useState<GraphActionProposal | null>(null);
   const sessionIdRef = useRef(generateId());
   const abortRef = useRef<AbortController | null>(null);
   const api = useApi();
 
+  isLoadingRef.current = isLoading;
+
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || isLoading) return;
+      if (!text.trim() || isLoadingRef.current) return;
 
       const userMsg: ChatMessage = {
         id: generateId(),
@@ -117,7 +120,7 @@ export function useChat() {
         setIsLoading(false);
       }
     },
-    [isLoading, api.createChatStream]
+    [api.createChatStream]
   );
 
   const clearMessages = useCallback(() => {

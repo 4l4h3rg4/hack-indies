@@ -23,13 +23,16 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
 
     # ── Models ──
-    llm_model: str = "openrouter/google/gemini-2.5-flash"
+    llm_model: str = "openrouter/mistralai/mistral-large-2411"
     llm_temperature: float = 0.2
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
 
     # ── Encryption ──
     encryption_key: str = ""
+
+    # ── HaveIBeenPwned (opcional) ──
+    hibp_api_key: str = ""
 
     # ── Watcher ──
     watcher_interval_minutes: int = 60
